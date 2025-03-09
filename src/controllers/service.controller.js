@@ -1,0 +1,74 @@
+// src/controllers/service.controller.js
+
+const serviceService = require("../services/service.service");
+
+/**
+ * Create new service
+ * req.body: { restaurantId, name, description, etc. }
+ */
+async function create(req, res, next) {
+  try {
+    const data = req.body;
+    const svc = await serviceService.createService(data);
+    return res.status(201).json({ success: true, data: svc });
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * Get all services for a restaurant
+ */
+async function getByRestaurant(req, res, next) {
+  try {
+    const { restaurantId } = req.params;
+    const services = await serviceService.getServicesByRestaurant(restaurantId);
+    return res.json({ success: true, data: services });
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * Update service
+ */
+async function update(req, res, next) {
+  try {
+    const { id } = req.params; // service id
+    const data = req.body;
+    const updated = await serviceService.updateService(id, data);
+    if (!updated) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Service not found or not updated" });
+    }
+    return res.json({ success: true, data: updated });
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * Deactivate service
+ */
+async function deactivate(req, res, next) {
+  try {
+    const { id } = req.params;
+    const result = await serviceService.deactivateService(id);
+    if (!result) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Service not found" });
+    }
+    return res.json({ success: true, data: result });
+  } catch (err) {
+    next(err);
+  }
+}
+
+module.exports = {
+  create,
+  getByRestaurant,
+  update,
+  deactivate,
+};
