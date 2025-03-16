@@ -1,6 +1,7 @@
 // src/models/Restaurant.js
 
 const mongoose = require("mongoose");
+const shortid = require("shortid"); // or nanoid
 
 const RestaurantSchema = new mongoose.Schema(
   {
@@ -41,10 +42,19 @@ const RestaurantSchema = new mongoose.Schema(
       type: Boolean,
       default: true,
     },
+    slug: { type: String, unique: true },
   },
   {
     timestamps: true, // adds createdAt, updatedAt
   }
 );
+
+// Generate slug on creation if not set
+RestaurantSchema.pre("save", function (next) {
+  if (!this.slug) {
+    this.slug = shortid.generate();
+  }
+  next();
+});
 
 module.exports = mongoose.model("Restaurant", RestaurantSchema);
