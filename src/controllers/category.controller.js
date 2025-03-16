@@ -66,9 +66,103 @@ async function deactivate(req, res, next) {
   }
 }
 
+/**
+ * Get all categories (across all restaurants)
+ */
+async function getAllGlobal(req, res, next) {
+  try {
+    const categories = await categoryService.getAllCategoriesGlobal();
+    return res.json({ success: true, data: categories });
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * Delete all services (across all restaurants)
+ */
+async function deleteAll(req, res, next) {
+  try {
+    const result = await categoryService.deleteAllCategories();
+    return res.json({
+      success: true,
+      message: `Deleted ${result.deletedCount} categories`,
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+// new controllers
+async function enableOne(req, res, next) {
+  try {
+    const { id } = req.params;
+    const updated = await categoryService.enableCategory(id);
+    if (!updated)
+      return res.status(404).json({ success: false, message: "Not found" });
+    return res.json({ success: true, data: updated });
+  } catch (err) {
+    next(err);
+  }
+}
+async function disableOne(req, res, next) {
+  try {
+    const { id } = req.params;
+    const updated = await categoryService.disableCategory(id);
+    if (!updated)
+      return res.status(404).json({ success: false, message: "Not found" });
+    return res.json({ success: true, data: updated });
+  } catch (err) {
+    next(err);
+  }
+}
+async function enableAllByService(req, res, next) {
+  try {
+    const { serviceId } = req.params;
+    const result = await categoryService.enableAllByService(serviceId);
+    return res.json({
+      success: true,
+      message: `Enabled ${result.modifiedCount} categories in service ${serviceId}`,
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+async function disableAllByService(req, res, next) {
+  try {
+    const { serviceId } = req.params;
+    const result = await categoryService.disableAllByService(serviceId);
+    return res.json({
+      success: true,
+      message: `Disabled ${result.modifiedCount} categories in service ${serviceId}`,
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+async function deleteAllByService(req, res, next) {
+  try {
+    const { serviceId } = req.params;
+    const result = await categoryService.deleteAllByService(serviceId);
+    return res.json({
+      success: true,
+      message: `Deleted ${result.deletedCount} categories in service ${serviceId}`,
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
 module.exports = {
   create,
   getByService,
   update,
   deactivate,
+  getAllGlobal,
+  deleteAll,
+  enableOne,
+  disableOne,
+  enableAllByService,
+  disableAllByService,
+  deleteAllByService,
 };

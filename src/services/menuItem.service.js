@@ -47,9 +47,52 @@ async function disableMenuItem(id) {
   );
 }
 
+// New global methods
+async function getAllItemsGlobal() {
+  return await MenuItem.find().sort({ createdAt: -1 });
+}
+
+async function deleteAllItemsGlobal() {
+  return MenuItem.deleteMany({});
+}
+
+/**
+ * Enable/Disable single item
+ */
+async function enableOne(id) {
+  return MenuItem.findByIdAndUpdate(id, { isActive: true }, { new: true });
+}
+async function disableOne(id) {
+  return MenuItem.findByIdAndUpdate(id, { isActive: false }, { new: true });
+}
+
+/**
+ * Enable/Disable all items by category
+ */
+async function enableAllByCategory(categoryId) {
+  return MenuItem.updateMany({ categoryId }, { $set: { isActive: true } });
+}
+async function disableAllByCategory(categoryId) {
+  return MenuItem.updateMany({ categoryId }, { $set: { isActive: false } });
+}
+
+/**
+ * Delete all items by category
+ */
+async function deleteAllByCategory(categoryId) {
+  return MenuItem.deleteMany({ categoryId });
+}
+
 module.exports = {
   createMenuItem,
   getItemsByCategory,
   updateMenuItem,
   disableMenuItem,
+  getAllItemsGlobal,
+  deleteAllItemsGlobal,
+  enableOne,
+  disableOne,
+  enableAllByCategory,
+  disableAllByCategory,
+  deleteAllByCategory,
 };

@@ -121,11 +121,88 @@ async function getQRCode(req, res) {
   }
 }
 
+async function getAllGlobal(req, res, next) {
+  try {
+    const restaurants = await restaurantService.getAllGlobal();
+    return res.json({ success: true, data: restaurants });
+  } catch (err) {
+    next(err);
+  }
+}
+
+async function deleteAll(req, res, next) {
+  try {
+    const result = await restaurantService.deleteAll();
+    return res.json({
+      success: true,
+      message: `Deleted ${result.deletedCount} restaurants`,
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+async function enableOne(req, res, next) {
+  try {
+    const { id } = req.params;
+    const updated = await restaurantService.enableRestaurant(id);
+    if (!updated) {
+      return res.status(404).json({ success: false, message: "Not found" });
+    }
+    return res.json({ success: true, data: updated });
+  } catch (err) {
+    next(err);
+  }
+}
+
+async function disableOne(req, res, next) {
+  try {
+    const { id } = req.params;
+    const updated = await restaurantService.disableRestaurant(id);
+    if (!updated) {
+      return res.status(404).json({ success: false, message: "Not found" });
+    }
+    return res.json({ success: true, data: updated });
+  } catch (err) {
+    next(err);
+  }
+}
+
+async function enableAllGlobal(req, res, next) {
+  try {
+    const result = await restaurantService.enableAllGlobal();
+    return res.json({
+      success: true,
+      message: `Enabled ${result.modifiedCount} restaurants globally`,
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+async function disableAllGlobal(req, res, next) {
+  try {
+    const result = await restaurantService.disableAllGlobal();
+    return res.json({
+      success: true,
+      message: `Disabled ${result.modifiedCount} restaurants globally`,
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
 module.exports = {
   create,
   getAll,
   getOne,
   update,
   deactivate,
-  getQRCode, // Export the new method
+  getQRCode,
+  getAllGlobal,
+  deleteAll,
+  enableOne,
+  disableOne,
+  enableAllGlobal,
+  disableAllGlobal,
 };

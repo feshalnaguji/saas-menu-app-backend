@@ -52,10 +52,44 @@ async function deactivateRestaurant(id) {
   );
 }
 
+// New services
+
+async function getAllGlobal() {
+  return Restaurant.find().sort({ createdAt: -1 });
+}
+
+async function deleteAll() {
+  return Restaurant.deleteMany({});
+}
+
+async function enableRestaurant(id) {
+  return Restaurant.findByIdAndUpdate(id, { isActive: true }, { new: true });
+}
+async function disableRestaurant(id) {
+  return Restaurant.findByIdAndUpdate(id, { isActive: false }, { new: true });
+}
+
+/**
+ * To disable all restaurants globally (extreme case only),
+ * or just do by some condition.
+ */
+async function disableAllGlobal() {
+  return Restaurant.updateMany({}, { isActive: false });
+}
+async function enableAllGlobal() {
+  return Restaurant.updateMany({}, { isActive: true });
+}
+
 module.exports = {
   createRestaurant,
   getAllRestaurants,
   getRestaurantById,
   updateRestaurant,
   deactivateRestaurant,
+  getAllGlobal,
+  deleteAll,
+  enableRestaurant,
+  disableRestaurant,
+  disableAllGlobal,
+  enableAllGlobal,
 };

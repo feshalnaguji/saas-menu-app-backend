@@ -38,12 +38,10 @@ async function update(req, res, next) {
     const data = req.body;
     const updated = await menuItemService.updateMenuItem(id, data);
     if (!updated) {
-      return res
-        .status(404)
-        .json({
-          success: false,
-          message: "Menu item not found or not updated",
-        });
+      return res.status(404).json({
+        success: false,
+        message: "Menu item not found or not updated",
+      });
     }
     return res.json({ success: true, data: updated });
   } catch (err) {
@@ -69,9 +67,108 @@ async function disable(req, res, next) {
   }
 }
 
+// New global or category-level methods
+async function getAllGlobal(req, res, next) {
+  try {
+    const items = await menuItemService.getAllItemsGlobal();
+    return res.json({ success: true, data: items });
+  } catch (err) {
+    next(err);
+  }
+}
+
+async function deleteAllGlobal(req, res, next) {
+  try {
+    const result = await menuItemService.deleteAllItemsGlobal();
+    return res.json({
+      success: true,
+      message: `Deleted ${result.deletedCount} menu items globally`,
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+async function enableOne(req, res, next) {
+  try {
+    const { id } = req.params;
+    const updated = await menuItemService.enableOne(id);
+    if (!updated) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Menu item not found" });
+    }
+    return res.json({ success: true, data: updated });
+  } catch (err) {
+    next(err);
+  }
+}
+
+async function disableOne(req, res, next) {
+  // Similar to above, but sets isActive=false
+  try {
+    const { id } = req.params;
+    const updated = await menuItemService.disableOne(id);
+    if (!updated) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Menu item not found" });
+    }
+    return res.json({ success: true, data: updated });
+  } catch (err) {
+    next(err);
+  }
+}
+
+async function enableAllByCategory(req, res, next) {
+  try {
+    const { categoryId } = req.params;
+    const result = await menuItemService.enableAllByCategory(categoryId);
+    return res.json({
+      success: true,
+      message: `Enabled ${result.modifiedCount} items for category ${categoryId}`,
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+async function disableAllByCategory(req, res, next) {
+  try {
+    const { categoryId } = req.params;
+    const result = await menuItemService.disableAllByCategory(categoryId);
+    return res.json({
+      success: true,
+      message: `Disabled ${result.modifiedCount} items for category ${categoryId}`,
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+async function deleteAllByCategory(req, res, next) {
+  try {
+    const { categoryId } = req.params;
+    const result = await menuItemService.deleteAllByCategory(categoryId);
+    return res.json({
+      success: true,
+      message: `Deleted ${result.deletedCount} items for category ${categoryId}`,
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
 module.exports = {
   create,
   getByCategory,
   update,
   disable,
+  getAllGlobal,
+  deleteAllGlobal,
+  enableOne,
+  disableOne,
+  enableAllByCategory,
+  disableAllByCategory,
+  deleteAllByCategory,
 };

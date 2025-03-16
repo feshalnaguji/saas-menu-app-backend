@@ -47,9 +47,52 @@ async function deactivateCategory(id) {
   );
 }
 
+/**
+ * Get all categories (across all restaurants)
+ * @returns {Promise<AllCategories[]>}
+ */
+async function getAllCategoriesGlobal() {
+  return Category.find().sort({ createdAt: -1 });
+}
+
+/**
+ * Delete all categories (across all restaurants)
+ * @returns {Promise<AllCategories|null>}
+ */
+async function deleteAllCategories() {
+  return Category.deleteMany({});
+}
+
+// New services
+async function enableCategory(id) {
+  return Category.findByIdAndUpdate(id, { isActive: true }, { new: true });
+}
+async function disableCategory(id) {
+  return Category.findByIdAndUpdate(id, { isActive: false }, { new: true });
+}
+
+// enable/disable all for a given service
+async function enableAllByService(serviceId) {
+  return Category.updateMany({ serviceId }, { $set: { isActive: true } });
+}
+async function disableAllByService(serviceId) {
+  return Category.updateMany({ serviceId }, { $set: { isActive: false } });
+}
+// delete all categories for service
+async function deleteAllByService(serviceId) {
+  return Category.deleteMany({ serviceId });
+}
+
 module.exports = {
   createCategory,
   getCategoriesByService,
   updateCategory,
   deactivateCategory,
+  getAllCategoriesGlobal,
+  deleteAllCategories,
+  enableCategory,
+  disableCategory,
+  enableAllByService,
+  disableAllByService,
+  deleteAllByService,
 };
