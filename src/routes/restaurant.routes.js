@@ -4,77 +4,98 @@ const express = require("express");
 const router = express.Router();
 const restaurantController = require("../controllers/restaurant.controller");
 const { protect, authorizeRoles } = require("../middlewares/auth");
+const {
+  checkRestaurantAccess,
+} = require("../middlewares/checkRestaurantAccess");
 
-// Create new restaurant
+// CREATE new restaurant
 router.post(
   "/",
   protect,
-  authorizeRoles("admin", "superadmin"),
+  authorizeRoles("superadmin"),
   restaurantController.create
 );
 
-// Get all active restaurants
+// GET all active restaurants
 router.get("/", restaurantController.getAll);
 
-// Get single restaurant
-router.get("/:id", restaurantController.getOne);
+// GET single restaurant by ID
+router.get("/:id", protect, restaurantController.getOne);
 
-// Update restaurant
+// UPDATE single restaurant
 router.put(
   "/:id",
   protect,
   authorizeRoles("admin", "superadmin"),
+  checkRestaurantAccess, // ensures admin is assigned to that restaurant
   restaurantController.update
 );
 
-// Deactivate restaurant
+// DEACTIVATE single (similar to disable or soft-delete)
 router.delete(
   "/:id",
   protect,
   authorizeRoles("admin", "superadmin"),
+  checkRestaurantAccess,
   restaurantController.deactivate
 );
 
-// Get QR code slug for restaurant
-router.get("/:id/qr", protect, restaurantController.getQRCode);
+// GET QR for restaurant
+router.get(
+  "/:id/qr",
+  protect,
+  authorizeRoles("admin", "superadmin"),
+  checkRestaurantAccess,
+  restaurantController.getQRCode
+);
 
-// New Routes
+// GET all global
 router.get(
   "/all/global",
   protect,
   authorizeRoles("admin", "superadmin"),
   restaurantController.getAllGlobal
 );
+
+// DELETE ALL restaurants globally
 router.delete(
   "/all/global",
   protect,
-  authorizeRoles("admin", "superadmin"),
+  authorizeRoles("superadmin"),
   restaurantController.deleteAll
 );
 
+// ENABLE ALL restaurants globally
 router.patch(
   "/all/global/enable",
   protect,
-  authorizeRoles("admin", "superadmin"),
+  authorizeRoles("superadmin"),
   restaurantController.enableAllGlobal
 );
+
+// DISABLE ALL restaurants globally
 router.patch(
   "/all/global/disable",
   protect,
-  authorizeRoles("admin", "superadmin"),
+  authorizeRoles("superadmin"),
   restaurantController.disableAllGlobal
 );
 
+// ENABLE single
 router.patch(
   "/:id/enable",
   protect,
   authorizeRoles("admin", "superadmin"),
+  checkRestaurantAccess,
   restaurantController.enableOne
 );
+
+// DISABLE single
 router.patch(
   "/:id/disable",
   protect,
   authorizeRoles("admin", "superadmin"),
+  checkRestaurantAccess,
   restaurantController.disableOne
 );
 

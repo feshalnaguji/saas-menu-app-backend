@@ -13,6 +13,13 @@ const UserSchema = new mongoose.Schema(
       enum: ["user", "admin", "superadmin"],
       default: "user",
     },
+    // array of Restaurant IDs that this admin can access
+    assignedRestaurants: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Restaurant",
+      },
+    ],
   },
   {
     timestamps: true,

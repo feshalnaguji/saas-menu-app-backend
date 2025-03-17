@@ -17,6 +17,7 @@ const categoryRoutes = require("./routes/category.routes");
 const menuItemRoutes = require("./routes/menuItem.routes");
 const excelRoutes = require("./routes/excel.routes");
 const authRoutes = require("./routes/auth.routes");
+const userRoutes = require("./routes/user.routes");
 
 // Mount routes
 app.use("/api/restaurants", restaurantRoutes);
@@ -25,6 +26,7 @@ app.use("/api/categories", categoryRoutes);
 app.use("/api/menu-items", menuItemRoutes);
 app.use("/api/excel", excelRoutes);
 app.use("/api/auth", authRoutes);
+app.use("/api/users", userRoutes);
 
 // Error handling middleware (example)
 app.use(errorHandler);

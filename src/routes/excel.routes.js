@@ -5,6 +5,9 @@ const router = express.Router();
 const excelController = require("../controllers/excel.controller");
 const upload = require("../middlewares/fileUpload"); // Multer
 const { protect, authorizeRoles } = require("../middlewares/auth");
+const {
+  checkExcelRestaurantAccess,
+} = require("../middlewares/checkExcelRestaurantAccess");
 
 // POST /api/excel/upload
 router.post(
@@ -12,6 +15,7 @@ router.post(
   protect,
   authorizeRoles("admin", "superadmin"), // only these roles can upload
   upload.single("file"),
+  checkExcelRestaurantAccess, // new or re-use checkRestaurantAccess with a tweak
   excelController.uploadExcel
 );
 

@@ -4,79 +4,101 @@ const express = require("express");
 const router = express.Router();
 const menuItemController = require("../controllers/menuItem.controller");
 const { protect, authorizeRoles } = require("../middlewares/auth");
+const { checkMenuItemAccess } = require("../middlewares/checkMenuItemAccess");
 
-// Create new menu item
+// CREATE new menu item
 router.post(
   "/",
   protect,
   authorizeRoles("admin", "superadmin"),
+  // might do a custom check that the category belongs to the admin's restaurant
   menuItemController.create
 );
 
-// Get items for a specific category
-// e.g. GET /api/menu-items/category/CAT123
-router.get("/category/:categoryId", menuItemController.getByCategory);
+// GET items by category
+router.get(
+  "/category/:categoryId",
+  protect,
+  // you might or might not require admin for read
+  menuItemController.getByCategory
+);
 
-// Update menu item
+// UPDATE single item
 router.put(
   "/:id",
   protect,
   authorizeRoles("admin", "superadmin"),
+  checkMenuItemAccess,
   menuItemController.update
 );
 
-// Disable/unavailable menu item
+// DISABLE (soft delete) single item
 router.delete(
   "/:id",
   protect,
   authorizeRoles("admin", "superadmin"),
+  checkMenuItemAccess,
   menuItemController.disable
 );
 
-// new routes
+// GET all items (global)
 router.get(
   "/",
   protect,
   authorizeRoles("admin", "superadmin"),
   menuItemController.getAllGlobal
 );
+
+// DELETE all items (global)
 router.delete(
   "/",
   protect,
-  authorizeRoles("admin", "superadmin"),
+  authorizeRoles("superadmin"),
   menuItemController.deleteAllGlobal
 );
 
+// ENABLE single item
 router.patch(
   "/:id/enable",
   protect,
   authorizeRoles("admin", "superadmin"),
+  checkMenuItemAccess,
   menuItemController.enableOne
 );
+
+// DISABLE single item
 router.patch(
   "/:id/disable",
   protect,
   authorizeRoles("admin", "superadmin"),
+  checkMenuItemAccess,
   menuItemController.disableOne
 );
 
+// ENABLE all items by category
 router.patch(
   "/category/:categoryId/enableAll",
   protect,
   authorizeRoles("admin", "superadmin"),
+  // might do checkCategoryAccess
   menuItemController.enableAllByCategory
 );
+
+// DISABLE all items by category
 router.patch(
   "/category/:categoryId/disableAll",
   protect,
   authorizeRoles("admin", "superadmin"),
+  // might do checkCategoryAccess
   menuItemController.disableAllByCategory
 );
 
+// DELETE all items by category
 router.delete(
   "/category/:categoryId",
   protect,
   authorizeRoles("admin", "superadmin"),
+  // might do checkCategoryAccess
   menuItemController.deleteAllByCategory
 );
 

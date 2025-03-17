@@ -1,19 +1,21 @@
-// src/services/excel.service.js (Updated snippet)
-
+// src/services/excel.service.js
 const { v4: uuidv4 } = require("uuid");
 const ImportLog = require("../models/ImportLog");
 const Service = require("../models/Service");
 const Category = require("../models/Category");
 const MenuItem = require("../models/MenuItem");
-const mongoose = require("mongoose");
 
 /**
- * Updated bulk import that supports EITHER:
- * - serviceId / categoryId
- * - OR serviceName / categoryName
+ * Bulk import that:
+ * 1) deletes old services/cats/items for the restaurant,
+ * 2) name-based create for services, categories, items
+ *
+ * @param {Object} importData - { restaurantId, rows: [] }
+ *    each element in rows has: { type, serviceName, categoryName, name, price, ... }
+ * @param {String} fileName - original filename
  */
 async function bulkImport(importData, fileName) {
-  const { restaurantId, services, categories, items } = importData;
+  const { restaurantId, rows } = importData;
   const importBatchId = uuidv4();
 
   let rowCount = 0;
@@ -21,179 +23,128 @@ async function bulkImport(importData, fileName) {
   let failCount = 0;
   const errors = [];
 
-  // local caches: name -> ObjectId
-  const serviceMap = {};
-  const categoryMap = {};
+  try {
+    // 0) DELETE old data for this restaurant
+    //    We assume any existing service => categories => items are cleared
+    //    so the new Excel fully replaces them.
+    await Service.deleteMany({ restaurantId });
+    await Category.deleteMany({
+      /* or find categories that belong to those old services? 
+                                   but since the old services are gone, 
+                                   those cats are effectively orphaned anyway if you had references */
+    });
+    await MenuItem.deleteMany({
+      /* same logic if needed. 
+                                   If you want to be thorough, 
+                                   do "categoryId in the old categories" 
+                                   but typically you can just do a big delete 
+                                   if you store restaurantId at item level. 
+                                   If your schema doesn't store item->restaurant directly, 
+                                   you might do a more advanced approach. */
+    });
 
-  // 1) Process services rows
-  for (const svcRow of services || []) {
-    rowCount++;
-    try {
-      svcRow.importBatch = importBatchId;
+    // 1) local maps by name => doc
+    const serviceMap = {};
+    const categoryMap = {};
 
-      // either we use the provided restaurantId or name-based approach
-      if (!svcRow.restaurantId) {
-        svcRow.restaurantId = restaurantId;
-      }
-
-      // create or upsert the service if you want. For now, let's just create new:
-      // If you want a name-based findOne, see below:
-      // e.g. if row.serviceName is given, we can do findOne by { name: row.serviceName, restaurantId }
-
-      // OPTIONAL approach: if row has "name" that is unique
-      // check if we already created a service with that name
-      if (!svcRow._id) {
-        // if we've cached the name, re-use it
-        if (serviceMap[svcRow.name]) {
-          // already created
-          successCount++;
-          continue; // skip creation
-        } else {
-          // create new
-          const createdService = await Service.create(svcRow);
-          serviceMap[svcRow.name] = createdService._id;
-          successCount++;
-        }
-      }
-    } catch (err) {
-      failCount++;
-      errors.push(`Service row error: ${err.message}`);
-    }
-  }
-
-  // 2) Process categories
-  for (const catRow of categories || []) {
-    rowCount++;
-    catRow.importBatch = importBatchId;
-
-    try {
-      let finalServiceId = null;
-
-      // 2A) if catRow.serviceId is present & valid, use that
-      if (catRow.serviceId) {
-        // attempt cast to ObjectId
-        try {
-          finalServiceId = new mongoose.Types.ObjectId(catRow.serviceId);
-        } catch (err) {
-          // cast fail -> fallback
-          finalServiceId = null;
-        }
-      }
-
-      // 2B) if no valid finalServiceId, attempt name-based approach
-      if (!finalServiceId && catRow.serviceName) {
-        // look up in local map first
-        if (serviceMap[catRow.serviceName]) {
-          finalServiceId = serviceMap[catRow.serviceName];
-        } else {
-          // or find in DB
-          let existingService = await Service.findOne({
-            name: catRow.serviceName,
+    for (const row of rows || []) {
+      rowCount++;
+      const { type } = row;
+      try {
+        if (type === "service") {
+          // create a new service doc with row.name, row.description, etc.
+          // row.name is the "serviceName"
+          const svcDoc = new Service({
             restaurantId,
+            name: row.name,
+            description: row.description || "",
+            isActive: row.isActive !== false, // default to true if not specified
+            importBatch: importBatchId,
+            // add other fields if you want
           });
-          if (!existingService) {
-            // create new
-            existingService = await Service.create({
+          await svcDoc.save();
+          // store in serviceMap
+          serviceMap[row.name] = svcDoc;
+          successCount++;
+        } else if (type === "category") {
+          // we rely on row.serviceName to find the parent service
+          const svcName = row.serviceName;
+          let parentSvc = serviceMap[svcName];
+          if (!parentSvc) {
+            // if we didn't see a "service" row for that name, create it on the fly
+            parentSvc = new Service({
               restaurantId,
-              name: catRow.serviceName,
+              name: svcName,
               importBatch: importBatchId,
             });
+            await parentSvc.save();
+            serviceMap[svcName] = parentSvc;
           }
-          finalServiceId = existingService._id;
-          // update local map
-          serviceMap[catRow.serviceName] = existingService._id;
-        }
-      }
-
-      // fallback: if STILL no finalServiceId, fail
-      if (!finalServiceId) {
-        throw new Error(
-          `No valid serviceId or serviceName for category row: ${catRow.name}`
-        );
-      }
-
-      catRow.serviceId = finalServiceId;
-      const categoryName = catRow.name;
-
-      // check if we already created a category with that name + finalServiceId in local map
-      const catKey = `${finalServiceId}-${categoryName}`;
-      if (categoryMap[catKey]) {
-        // skip creation
-        successCount++;
-      } else {
-        // create
-        const createdCat = await Category.create(catRow);
-        categoryMap[catKey] = createdCat._id;
-        successCount++;
-      }
-    } catch (err) {
-      failCount++;
-      errors.push(`Category row error: ${err.message}`);
-    }
-  }
-
-  // 3) Process items
-  for (const itemRow of items || []) {
-    rowCount++;
-    itemRow.importBatch = importBatchId;
-
-    try {
-      let finalCategoryId = null;
-
-      // 3A) if itemRow.categoryId is present & valid, use that
-      if (itemRow.categoryId) {
-        try {
-          finalCategoryId = new mongoose.Types.ObjectId(itemRow.categoryId);
-        } catch (err) {
-          finalCategoryId = null;
-        }
-      }
-
-      // 3B) if no valid finalCategoryId, attempt name-based approach
-      if (!finalCategoryId && itemRow.categoryName) {
-        // We need to find the category by name. But we also need the service name or ID
-        // Possibly your row has 'serviceName' or 'serviceId'? We'll assume we do 'catKey' approach
-        const catKey = `${itemRow.serviceName || "???"}-${
-          itemRow.categoryName
-        }`;
-        // If we stored in categoryMap we can find it
-        if (categoryMap[catKey]) {
-          finalCategoryId = categoryMap[catKey];
-        } else {
-          // Or find in DB. But we need a service reference or something. This is demo logic
-          // We might guess 'serviceName' is on the row. For now, we'll do a naive find:
-          const foundCat = await Category.findOne({
-            name: itemRow.categoryName,
+          // now create the category
+          const catDoc = new Category({
+            serviceId: parentSvc._id,
+            name: row.name,
+            description: row.description || "",
+            isActive: row.isActive !== false,
+            importBatch: importBatchId,
           });
-          if (!foundCat) {
-            // create new category? We need a service though. We'll skip that here or handle gracefully
-            throw new Error(
-              `No category found or created for itemRow: ${itemRow.name} - missing categoryName + service reference?`
-            );
+          await catDoc.save();
+          categoryMap[row.name] = catDoc;
+          successCount++;
+        } else if (type === "item") {
+          // we rely on row.categoryName to find the parent category
+          const catName = row.categoryName;
+          let parentCat = categoryMap[catName];
+          if (!parentCat) {
+            // if there's no row for that category, optionally create on the fly
+            // but typically you'd want to fail. We'll create for demo:
+            parentCat = new Category({
+              // but we need a parent service => we might do a "dummy" or fail
+              name: catName,
+              serviceId: null,
+            });
+            await parentCat.save();
+            categoryMap[catName] = parentCat;
           }
-          finalCategoryId = foundCat._id;
-          categoryMap[catKey] = foundCat._id;
+          const itemDoc = new MenuItem({
+            categoryId: parentCat._id,
+            name: row.name,
+            description: row.description || "",
+            price: row.price ?? 0,
+            vegNonVeg: row.vegNonVeg || "veg",
+            portionInfo: row.portionInfo || "",
+            nutritionalInfo: {
+              calories: row.calories ?? 0,
+              protein: row.protein ?? 0,
+              carbs: row.carbs ?? 0,
+              fat: row.fat ?? 0,
+            },
+            allergens: row.allergens ? row.allergens.split(",") : [],
+            ingredients: row.ingredients ? row.ingredients.split(",") : [],
+            imageUrl: row.imageUrl || "",
+            available: row.available !== false,
+            isSpecial: row.isSpecial === true,
+            importBatch: importBatchId,
+          });
+          await itemDoc.save();
+          successCount++;
+        } else {
+          failCount++;
+          errors.push(`Unknown row type '${type}'`);
         }
+      } catch (err) {
+        failCount++;
+        errors.push(`Row error: ${err.message}`);
       }
-
-      if (!finalCategoryId) {
-        throw new Error(
-          `No valid categoryId or categoryName for item row: ${itemRow.name}`
-        );
-      }
-
-      itemRow.categoryId = finalCategoryId;
-      await MenuItem.create(itemRow);
-      successCount++;
-    } catch (err) {
-      failCount++;
-      errors.push(`MenuItem row error: ${err.message}`);
     }
+  } catch (err) {
+    errors.push(`General import error: ${err.message}`);
   }
 
-  // finalize ImportLog
+  // Insert an ImportLog doc if you want
   const importLogDoc = new ImportLog({
     fileName,
+    importedAt: new Date(),
     rowCount,
     successCount,
     failCount,

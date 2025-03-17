@@ -13,18 +13,49 @@ function generateToken(user) {
 
 /**
  * POST /api/auth/register
- * Body: { name, email, password, role? }
+ * Body: { name, email, password, role?, assignedRestaurants? }
  */
 exports.register = async (req, res) => {
   try {
-    const { name, email, password, role } = req.body;
+    const { name, email, password, role, assignedRestaurants } = req.body;
+
+    // Check if email is already used
     let user = await User.findOne({ email });
     if (user) {
       return res
         .status(400)
         .json({ success: false, message: "Email already in use" });
     }
-    user = new User({ name, email, password, role });
+
+    // If the request wants to create an admin, ensure the logged-in user is superadmin
+    if (role === "admin") {
+      // The user creating this must be superadmin
+      if (req.user.role !== "superadmin") {
+        return res.status(403).json({
+          success: false,
+          message: "Only superadmin can create admin users",
+        });
+      }
+      // Validate that assignedRestaurants are legit
+      // optionally check if each ID is a valid Restaurant
+      // or just accept them
+    }
+
+    // If role=superadmin, also ensure that the request user is superadmin
+    if (role === "superadmin" && req.user.role !== "superadmin") {
+      return res.status(403).json({
+        success: false,
+        message: "Only superadmin can create another superadmin",
+      });
+    }
+
+    user = new User({
+      name,
+      email,
+      password,
+      role: role || "user",
+      assignedRestaurants: assignedRestaurants || [],
+    });
     await user.save();
 
     const token = generateToken(user);

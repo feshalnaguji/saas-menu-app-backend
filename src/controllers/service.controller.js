@@ -34,9 +34,9 @@ async function getByRestaurant(req, res, next) {
  */
 async function update(req, res, next) {
   try {
-    const { id } = req.params; // service id
+    const { serviceId } = req.params; // service id
     const data = req.body;
-    const updated = await serviceService.updateService(id, data);
+    const updated = await serviceService.updateService(serviceId, data);
     if (!updated) {
       return res
         .status(404)
@@ -53,8 +53,8 @@ async function update(req, res, next) {
  */
 async function deactivate(req, res, next) {
   try {
-    const { id } = req.params;
-    const result = await serviceService.deactivateService(id);
+    const { serviceId } = req.params;
+    const result = await serviceService.deactivateService(serviceId);
     if (!result) {
       return res
         .status(404)
@@ -130,12 +130,12 @@ async function enableAllByRestaurant(req, res, next) {
 }
 
 /**
- * PATCH /api/services/:id/enable
+ * PATCH /api/services/:serviceId/enable
  */
 async function enableOne(req, res, next) {
   try {
-    const { id } = req.params;
-    const updated = await serviceService.enableService(id);
+    const { serviceId } = req.params;
+    const updated = await serviceService.enableService(serviceId);
     if (!updated) {
       return res
         .status(404)
@@ -148,12 +148,12 @@ async function enableOne(req, res, next) {
 }
 
 /**
- * PATCH /api/services/:id/disable
+ * PATCH /api/services/:serviceId/disable
  */
 async function disableOne(req, res, next) {
   try {
-    const { id } = req.params;
-    const updated = await serviceService.disableService(id);
+    const { serviceId } = req.params;
+    const updated = await serviceService.disableService(serviceId);
     if (!updated) {
       return res
         .status(404)

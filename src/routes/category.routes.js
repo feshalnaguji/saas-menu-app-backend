@@ -4,36 +4,39 @@ const express = require("express");
 const router = express.Router();
 const categoryController = require("../controllers/category.controller");
 const { protect, authorizeRoles } = require("../middlewares/auth");
+const { checkCategoryAccess } = require("../middlewares/checkCategoryAccess");
 
-// Create new category
+// CREATE new category
 router.post(
   "/",
   protect,
   authorizeRoles("admin", "superadmin"),
+  // might want a custom middleware that checks the service ID => checkServiceAccess by body.serviceId
   categoryController.create
 );
 
-// Get categories for a specific service
-// e.g. GET /api/categories/service/SVC123
-router.get("/service/:serviceId", categoryController.getByService);
+// GET categories by service
+router.get("/service/:serviceId", protect, categoryController.getByService);
 
-// Update category
+// UPDATE single category
 router.put(
-  "/:id",
+  "/:categoryId",
   protect,
   authorizeRoles("admin", "superadmin"),
+  checkCategoryAccess,
   categoryController.update
 );
 
-// Deactivate category
+// DEACTIVATE single category
 router.delete(
-  "/:id",
+  "/:categoryId",
   protect,
   authorizeRoles("admin", "superadmin"),
+  checkCategoryAccess,
   categoryController.deactivate
 );
 
-// Get all categories (accross all restaurants)
+// GET all categories (global)
 router.get(
   "/",
   protect,
@@ -41,27 +44,32 @@ router.get(
   categoryController.getAllGlobal
 );
 
-// Delete all categories (accross all restaurants)
+// DELETE all categories (global)
 router.delete(
   "/",
   protect,
-  authorizeRoles("admin", "superadmin"),
+  authorizeRoles("superadmin"),
   categoryController.deleteAll
 );
 
-// new routes
+// ENABLE all categories by service
 router.patch(
   "/service/:serviceId/enableAll",
   protect,
   authorizeRoles("admin", "superadmin"),
   categoryController.enableAllByService
 );
+
+// DISABLE all categories by service
 router.patch(
   "/service/:serviceId/disableAll",
   protect,
   authorizeRoles("admin", "superadmin"),
+  // might do checkServiceAccess or checkRestaurantIdParam
   categoryController.disableAllByService
 );
+
+// DELETE all categories by service
 router.delete(
   "/service/:serviceId",
   protect,
@@ -69,16 +77,21 @@ router.delete(
   categoryController.deleteAllByService
 );
 
+// ENABLE single category
 router.patch(
-  "/:id/enable",
+  "/:categoryId/enable",
   protect,
   authorizeRoles("admin", "superadmin"),
+  checkCategoryAccess,
   categoryController.enableOne
 );
+
+// DISABLE single category
 router.patch(
-  "/:id/disable",
+  "/:categoryId/disable",
   protect,
   authorizeRoles("admin", "superadmin"),
+  checkCategoryAccess,
   categoryController.disableOne
 );
 
