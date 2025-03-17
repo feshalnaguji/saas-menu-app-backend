@@ -34,6 +34,11 @@ app.use(helmet());
 
 app.use(compression());
 
+// Root route for health check
+app.get("/", (req, res) => {
+  res.status(200).json({ message: "API is running" });
+});
+
 // Mount routes
 app.use("/api/restaurants", restaurantRoutes);
 app.use("/api/services", serviceRoutes);
