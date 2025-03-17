@@ -1,5 +1,5 @@
 // src/serverless.js
-const app = require("./app");
+const app = require(".");
 
 // We do NOT call app.listen(...) here
 // Instead we export a function for Vercel to call

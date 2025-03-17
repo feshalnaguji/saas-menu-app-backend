@@ -1,8 +1,8 @@
 // src/server.js
 
-const app = require("./app");
+// const app = require("./index");
 const connectDB = require("./config/db");
-const { port } = require("./config");
+// const { port } = require("./config/config");
 
 // Connect to MongoDB first
 connectDB()
@@ -11,7 +11,7 @@ connectDB()
     // app.listen(port, () => {
     //   console.log(`[Server] App listening on port ${port}`);
     // });
-    console.log("server is running");
+    console.log("Server is running");
   })
   .catch((err) => {
     console.error("[Server] Error connecting to DB:", err);
