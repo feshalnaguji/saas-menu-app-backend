@@ -2,7 +2,7 @@
   "name": "saas-menu-app-backend",
   "version": "1.0.0",
   "description": "SAAS MENU APP BACKEND",
-  "main": "index.js",
+  "main": "src/server.js",
   "directories": {
     "test": "test"
   },
