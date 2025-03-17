@@ -8,9 +8,9 @@ const { port } = require("./config");
 connectDB()
   .then(() => {
     // Start the server only if DB connection is successful
-    app.listen(port, () => {
-      console.log(`[Server] App listening on port ${port}`);
-    });
+    // app.listen(port, () => {
+    //   console.log(`[Server] App listening on port ${port}`);
+    // });
   })
   .catch((err) => {
     console.error("[Server] Error connecting to DB:", err);
