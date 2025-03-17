@@ -2,13 +2,13 @@
   "name": "saas-menu-app-backend",
   "version": "1.0.0",
   "description": "SAAS MENU APP BACKEND",
-  "main": "src/server.js",
+  "main": "src/index.js",
   "directories": {
     "test": "test"
   },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "node src/server.js",
+    "start": "node src/index.js",
     "dev": "nodemon src/server.js",
     "lint": "eslint src/**/*.js"
   },
