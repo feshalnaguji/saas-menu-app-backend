@@ -95,4 +95,22 @@ router.patch(
   categoryController.disableOne
 );
 
+// GET all categories by Restaurant
+router.get(
+  "/restaurant/:restaurantId",
+  protect,
+  authorizeRoles("admin", "superadmin"),
+  // optional: checkRestaurantIdParam or a similar middleware
+  categoryController.getAllByRestaurant
+);
+
+// DELETE all categories by Restaurant
+router.delete(
+  "/restaurant/:restaurantId",
+  protect,
+  authorizeRoles("admin", "superadmin"),
+  // optional: checkRestaurantIdParam
+  categoryController.deleteAllByRestaurant
+);
+
 module.exports = router;

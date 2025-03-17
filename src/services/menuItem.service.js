@@ -1,6 +1,8 @@
 // src/services/menuItem.service.js
 
 const MenuItem = require("../models/MenuItem");
+const Service = require("../models/Service");
+const Category = require("../models/Category");
 
 /**
  * Create a new menu item
@@ -83,6 +85,37 @@ async function deleteAllByCategory(categoryId) {
   return MenuItem.deleteMany({ categoryId });
 }
 
+// Get all menu items by Restaurant
+async function getAllItemsByRestaurant(restaurantId) {
+  // find all services for that restaurant
+  const services = await Service.find({ restaurantId }).select("_id");
+  const serviceIds = services.map((s) => s._id);
+
+  // find all categories for those services
+  const categories = await Category.find({
+    serviceId: { $in: serviceIds },
+  }).select("_id");
+  const categoryIds = categories.map((c) => c._id);
+
+  // find items for those categoryIds
+  return MenuItem.find({ categoryId: { $in: categoryIds } }).sort({
+    createdAt: -1,
+  });
+}
+
+// Delete all menu items by Restaurant
+async function deleteAllItemsByRestaurant(restaurantId) {
+  const services = await Service.find({ restaurantId }).select("_id");
+  const serviceIds = services.map((s) => s._id);
+
+  const categories = await Category.find({
+    serviceId: { $in: serviceIds },
+  }).select("_id");
+  const categoryIds = categories.map((c) => c._id);
+
+  return MenuItem.deleteMany({ categoryId: { $in: categoryIds } });
+}
+
 module.exports = {
   createMenuItem,
   getItemsByCategory,
@@ -95,4 +128,6 @@ module.exports = {
   enableAllByCategory,
   disableAllByCategory,
   deleteAllByCategory,
+  getAllItemsByRestaurant,
+  deleteAllItemsByRestaurant,
 };

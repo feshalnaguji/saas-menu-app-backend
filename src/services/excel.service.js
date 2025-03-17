@@ -24,26 +24,26 @@ async function bulkImport(importData, fileName) {
   const errors = [];
 
   try {
-    // 0) DELETE old data for this restaurant
-    //    We assume any existing service => categories => items are cleared
-    //    so the new Excel fully replaces them.
-    await Service.deleteMany({ restaurantId });
-    await Category.deleteMany({
-      /* or find categories that belong to those old services? 
-                                   but since the old services are gone, 
-                                   those cats are effectively orphaned anyway if you had references */
-    });
-    await MenuItem.deleteMany({
-      /* same logic if needed. 
-                                   If you want to be thorough, 
-                                   do "categoryId in the old categories" 
-                                   but typically you can just do a big delete 
-                                   if you store restaurantId at item level. 
-                                   If your schema doesn't store item->restaurant directly, 
-                                   you might do a more advanced approach. */
-    });
+    // STEP A) Find old services for this restaurant
+    const oldServices = await Service.find({ restaurantId }).select("_id");
+    const oldServiceIds = oldServices.map((doc) => doc._id);
 
-    // 1) local maps by name => doc
+    // STEP B) Find categories that belong to these service IDs
+    const oldCategories = await Category.find({
+      serviceId: { $in: oldServiceIds },
+    }).select("_id");
+    const oldCategoryIds = oldCategories.map((doc) => doc._id);
+
+    // STEP C) Delete items that belong to those category IDs
+    await MenuItem.deleteMany({ categoryId: { $in: oldCategoryIds } });
+
+    // STEP D) Delete the categories themselves
+    await Category.deleteMany({ serviceId: { $in: oldServiceIds } });
+
+    // STEP E) Delete the services themselves
+    await Service.deleteMany({ _id: { $in: oldServiceIds } });
+
+    // Now you can re-create new ones from Excel
     const serviceMap = {};
     const categoryMap = {};
 
@@ -52,26 +52,21 @@ async function bulkImport(importData, fileName) {
       const { type } = row;
       try {
         if (type === "service") {
-          // create a new service doc with row.name, row.description, etc.
-          // row.name is the "serviceName"
           const svcDoc = new Service({
             restaurantId,
             name: row.name,
             description: row.description || "",
-            isActive: row.isActive !== false, // default to true if not specified
+            isActive: row.isActive !== false,
             importBatch: importBatchId,
-            // add other fields if you want
           });
           await svcDoc.save();
-          // store in serviceMap
           serviceMap[row.name] = svcDoc;
           successCount++;
         } else if (type === "category") {
-          // we rely on row.serviceName to find the parent service
           const svcName = row.serviceName;
           let parentSvc = serviceMap[svcName];
           if (!parentSvc) {
-            // if we didn't see a "service" row for that name, create it on the fly
+            // Create service on the fly if missing or fail
             parentSvc = new Service({
               restaurantId,
               name: svcName,
@@ -80,7 +75,6 @@ async function bulkImport(importData, fileName) {
             await parentSvc.save();
             serviceMap[svcName] = parentSvc;
           }
-          // now create the category
           const catDoc = new Category({
             serviceId: parentSvc._id,
             name: row.name,
@@ -92,16 +86,13 @@ async function bulkImport(importData, fileName) {
           categoryMap[row.name] = catDoc;
           successCount++;
         } else if (type === "item") {
-          // we rely on row.categoryName to find the parent category
           const catName = row.categoryName;
           let parentCat = categoryMap[catName];
           if (!parentCat) {
-            // if there's no row for that category, optionally create on the fly
-            // but typically you'd want to fail. We'll create for demo:
+            // create cat on the fly or fail
             parentCat = new Category({
-              // but we need a parent service => we might do a "dummy" or fail
+              serviceId: null, // no reference => might want to fail instead
               name: catName,
-              serviceId: null,
             });
             await parentCat.save();
             categoryMap[catName] = parentCat;
@@ -141,7 +132,7 @@ async function bulkImport(importData, fileName) {
     errors.push(`General import error: ${err.message}`);
   }
 
-  // Insert an ImportLog doc if you want
+  // (Optional) Insert an ImportLog doc
   const importLogDoc = new ImportLog({
     fileName,
     importedAt: new Date(),

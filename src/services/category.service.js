@@ -1,6 +1,7 @@
 // src/services/category.service.js
 
 const Category = require("../models/Category");
+const Service = require("../models/Service");
 
 /**
  * Create a new category
@@ -83,6 +84,28 @@ async function deleteAllByService(serviceId) {
   return Category.deleteMany({ serviceId });
 }
 
+// Get all categories by Restaurant
+async function getAllCategoriesByRestaurant(restaurantId) {
+  // find all services for this restaurant
+  const services = await Service.find({ restaurantId }).select("_id");
+  const serviceIds = services.map((s) => s._id);
+
+  // find categories that belong to those serviceIds
+  return Category.find({ serviceId: { $in: serviceIds } }).sort({
+    createdAt: -1,
+  });
+}
+
+// Delete all categories by Restaurant
+async function deleteAllCategoriesByRestaurant(restaurantId) {
+  // find all services for this restaurant
+  const services = await Service.find({ restaurantId }).select("_id");
+  const serviceIds = services.map((s) => s._id);
+
+  // delete categories with those service IDs
+  return Category.deleteMany({ serviceId: { $in: serviceIds } });
+}
+
 module.exports = {
   createCategory,
   getCategoriesByService,
@@ -95,4 +118,6 @@ module.exports = {
   enableAllByService,
   disableAllByService,
   deleteAllByService,
+  getAllCategoriesByRestaurant,
+  deleteAllCategoriesByRestaurant,
 };

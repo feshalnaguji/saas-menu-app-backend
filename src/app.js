@@ -2,6 +2,8 @@
 
 const express = require("express");
 const app = express();
+const helmet = require("helmet");
+const compression = require("compression");
 const errorHandler = require("./middlewares/errorHandler");
 
 // Middleware for JSON body parsing
@@ -18,6 +20,11 @@ const menuItemRoutes = require("./routes/menuItem.routes");
 const excelRoutes = require("./routes/excel.routes");
 const authRoutes = require("./routes/auth.routes");
 const userRoutes = require("./routes/user.routes");
+
+// Set security HTTP header
+app.use(helmet());
+
+app.use(compression());
 
 // Mount routes
 app.use("/api/restaurants", restaurantRoutes);

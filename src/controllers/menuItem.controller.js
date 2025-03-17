@@ -159,6 +159,31 @@ async function deleteAllByCategory(req, res, next) {
   }
 }
 
+async function getAllByRestaurant(req, res, next) {
+  try {
+    const { restaurantId } = req.params;
+    const items = await menuItemService.getAllItemsByRestaurant(restaurantId);
+    return res.json({ success: true, data: items });
+  } catch (err) {
+    next(err);
+  }
+}
+
+async function deleteAllByRestaurant(req, res, next) {
+  try {
+    const { restaurantId } = req.params;
+    const result = await menuItemService.deleteAllItemsByRestaurant(
+      restaurantId
+    );
+    return res.json({
+      success: true,
+      message: `Deleted ${result.deletedCount} menu items for restaurant ${restaurantId}`,
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
 module.exports = {
   create,
   getByCategory,
@@ -171,4 +196,6 @@ module.exports = {
   enableAllByCategory,
   disableAllByCategory,
   deleteAllByCategory,
+  getAllByRestaurant,
+  deleteAllByRestaurant,
 };

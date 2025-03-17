@@ -153,6 +153,34 @@ async function deleteAllByService(req, res, next) {
   }
 }
 
+async function getAllByRestaurant(req, res, next) {
+  try {
+    const { restaurantId } = req.params;
+    // find categories that belong to that restaurant
+    const cats = await categoryService.getAllCategoriesByRestaurant(
+      restaurantId
+    );
+    return res.json({ success: true, data: cats });
+  } catch (err) {
+    next(err);
+  }
+}
+
+async function deleteAllByRestaurant(req, res, next) {
+  try {
+    const { restaurantId } = req.params;
+    const result = await categoryService.deleteAllCategoriesByRestaurant(
+      restaurantId
+    );
+    return res.json({
+      success: true,
+      message: `Deleted ${result.deletedCount} categories for restaurant ${restaurantId}`,
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
 module.exports = {
   create,
   getByService,
@@ -165,4 +193,6 @@ module.exports = {
   enableAllByService,
   disableAllByService,
   deleteAllByService,
+  getAllByRestaurant,
+  deleteAllByRestaurant,
 };

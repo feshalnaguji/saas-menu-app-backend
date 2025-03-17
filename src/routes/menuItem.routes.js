@@ -102,4 +102,20 @@ router.delete(
   menuItemController.deleteAllByCategory
 );
 
+// GET all items by Restaurant
+router.get(
+  "/restaurant/:restaurantId",
+  protect,
+  authorizeRoles("admin", "superadmin"),
+  menuItemController.getAllByRestaurant
+);
+
+// DELETE all items by Restaurant
+router.delete(
+  "/restaurant/:restaurantId",
+  protect,
+  authorizeRoles("admin", "superadmin"),
+  menuItemController.deleteAllByRestaurant
+);
+
 module.exports = router;
