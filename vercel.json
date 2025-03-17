@@ -11,8 +11,5 @@
       "src": "/(.*)",
       "dest": "src/serverless.js"
     }
-  ],
-  "env": {
-    "NEXT_PUBLIC_API_URL": "https://saas-menu-app-backend-fvt2.vercel.app"
-  }
+  ]
 }

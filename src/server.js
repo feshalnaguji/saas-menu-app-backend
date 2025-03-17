@@ -11,6 +11,7 @@ connectDB()
     // app.listen(port, () => {
     //   console.log(`[Server] App listening on port ${port}`);
     // });
+    console.log("server is running");
   })
   .catch((err) => {
     console.error("[Server] Error connecting to DB:", err);
