@@ -1,16 +1,16 @@
 // src/server.js
 
-// const app = require("./index");
+const app = require("./app");
 const connectDB = require("./config/db");
-// const { port } = require("./config/config");
+const { port } = require("./config/index");
 
 // Connect to MongoDB first
 connectDB()
   .then(() => {
     // Start the server only if DB connection is successful
-    // app.listen(port, () => {
-    //   console.log(`[Server] App listening on port ${port}`);
-    // });
+    app.listen(port, () => {
+      console.log(`[Server] App listening on port ${port}`);
+    });
     console.log("Server is running");
   })
   .catch((err) => {

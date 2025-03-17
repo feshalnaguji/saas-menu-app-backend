@@ -1,7 +1,7 @@
 // src/config/db.js
 
 const mongoose = require("mongoose");
-const { mongoUri, env } = require("./config");
+const { mongoUri, env } = require("./index");
 
 // Additional Mongoose options (optional)
 const mongooseOptions = {
