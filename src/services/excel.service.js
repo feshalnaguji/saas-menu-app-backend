@@ -34,14 +34,19 @@ async function bulkImport(importData, fileName) {
     }).select("_id");
     const oldCategoryIds = oldCategories.map((doc) => doc._id);
 
-    // STEP C) Delete items that belong to those category IDs
-    await MenuItem.deleteMany({ categoryId: { $in: oldCategoryIds } });
-
-    // STEP D) Delete the categories themselves
-    await Category.deleteMany({ serviceId: { $in: oldServiceIds } });
-
-    // STEP E) Delete the services themselves
-    await Service.deleteMany({ _id: { $in: oldServiceIds } });
+    // deactivate them
+    await Service.updateMany(
+      { _id: { $in: oldServiceIds } },
+      { $set: { isActive: false } }
+    );
+    await Category.updateMany(
+      { _id: { $in: oldCategoryIds } },
+      { $set: { isActive: false } }
+    );
+    await MenuItem.updateMany(
+      { categoryId: { $in: oldCategoryIds } },
+      { $set: { isActive: false } }
+    );
 
     // Now you can re-create new ones from Excel
     const serviceMap = {};

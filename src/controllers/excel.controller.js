@@ -18,6 +18,18 @@ exports.uploadExcel = async (req, res) => {
     const sheet = workbook.Sheets[workbook.SheetNames[0]];
     const rawRows = xlsx.utils.sheet_to_json(sheet);
 
+    // 1) Count how many item rows are in rawRows
+    const itemCount = rawRows.filter((r) => r.type === "item").length;
+
+    // 2) If user is admin, ensure itemCount <= 50
+    if (req.user.role === "admin" && itemCount > 50) {
+      fs.unlinkSync(filePath); // remove file
+      return res.status(403).json({
+        success: false,
+        message: `Cannot import more than 50 items. Please contact superadmin.`,
+      });
+    }
+
     // Convert them to the shape: { type, serviceName, categoryName, name, etc. }
     // If your columns are "type, name, serviceName, description, price, etc." do:
     const rows = rawRows.map((r) => ({
