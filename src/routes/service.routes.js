@@ -5,6 +5,9 @@ const router = express.Router();
 const serviceController = require("../controllers/service.controller");
 const { protect, authorizeRoles } = require("../middlewares/auth");
 const { checkServiceAccess } = require("../middlewares/checkServiceAccess");
+const {
+  checkRestaurantAccess,
+} = require("../middlewares/checkRestaurantAccess");
 
 // CREATE new service
 router.post(
@@ -13,6 +16,7 @@ router.post(
   authorizeRoles("admin", "superadmin"),
   // You might also confirm the admin is assigned to restaurantId in req.body,
   // but that typically requires a special middleware referencing the body => checkExcelRestaurantAccess logic if you want
+  checkRestaurantAccess,
   serviceController.create
 );
 
@@ -20,6 +24,8 @@ router.post(
 router.get(
   "/restaurant/:restaurantId",
   protect,
+  authorizeRoles("admin", "superadmin"),
+  checkRestaurantAccess,
   serviceController.getByRestaurant
 );
 
@@ -45,7 +51,7 @@ router.delete(
 router.get(
   "/",
   protect,
-  authorizeRoles("admin", "superadmin"),
+  authorizeRoles("superadmin"),
   serviceController.getAllGlobal
 );
 
@@ -63,6 +69,7 @@ router.patch(
   protect,
   authorizeRoles("admin", "superadmin"),
   // You might do checkRestaurantAccess logic here if you want admin to only do this if assigned
+  checkRestaurantAccess,
   serviceController.disableAllByRestaurant
 );
 
@@ -72,6 +79,7 @@ router.patch(
   protect,
   authorizeRoles("admin", "superadmin"),
   // same logic if you want to ensure the admin can do it
+  checkRestaurantAccess,
   serviceController.enableAllByRestaurant
 );
 
@@ -99,6 +107,7 @@ router.delete(
   protect,
   authorizeRoles("admin", "superadmin"),
   // checkRestaurantAccess or a variant if you want to confirm
+  checkRestaurantAccess,
   serviceController.deleteAllByRestaurant
 );
 

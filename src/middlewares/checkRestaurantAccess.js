@@ -23,8 +23,8 @@ exports.checkRestaurantAccess = async function (req, res, next) {
     }
 
     // The route param is typically :id => restaurant ID
-    const { id } = req.params;
-    const restaurant = await Restaurant.findById(id);
+    const { restaurantId } = req.params;
+    const restaurant = await Restaurant.findById(restaurantId);
     if (!restaurant) {
       return res
         .status(404)

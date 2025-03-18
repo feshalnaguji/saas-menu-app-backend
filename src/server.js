@@ -6,19 +6,14 @@ const { port } = require("./config/index");
 
 // Connect to MongoDB first
 connectDB()
-  .then(() => console.log("Connected to MongoDB"))
+  .then(() => {
+    // Start the server only if DB connection is successful
+    app.listen(port, () => {
+      console.log(`[Server] App listening on port ${port}`);
+    });
+    console.log("Server is running");
+  })
   .catch((err) => {
     console.error("[Server] Error connecting to DB:", err);
     process.exit(1);
   });
-
-// For Vercel, we need to export the app
-if (process.env.VERCEL) {
-  // Export for serverless
-  module.exports = app;
-} else {
-  // Start server normally
-  app.listen(port, () => {
-    console.log(`Server is running on port ${port}`);
-  });
-}

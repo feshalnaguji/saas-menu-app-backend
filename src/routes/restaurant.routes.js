@@ -53,7 +53,7 @@ router.get(
 router.get(
   "/all/global",
   protect,
-  authorizeRoles("admin", "superadmin"),
+  authorizeRoles("superadmin"),
   restaurantController.getAllGlobal
 );
 

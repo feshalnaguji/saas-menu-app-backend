@@ -5,6 +5,10 @@ const router = express.Router();
 const menuItemController = require("../controllers/menuItem.controller");
 const { protect, authorizeRoles } = require("../middlewares/auth");
 const { checkMenuItemAccess } = require("../middlewares/checkMenuItemAccess");
+const { checkCategoryAccess } = require("../middlewares/checkCategoryAccess");
+const {
+  checkRestaurantAccess,
+} = require("../middlewares/checkRestaurantAccess");
 
 // CREATE new menu item
 router.post(
@@ -12,6 +16,7 @@ router.post(
   protect,
   authorizeRoles("admin", "superadmin"),
   // might do a custom check that the category belongs to the admin's restaurant
+  checkCategoryAccess,
   menuItemController.create
 );
 
@@ -45,7 +50,7 @@ router.delete(
 router.get(
   "/",
   protect,
-  authorizeRoles("admin", "superadmin"),
+  authorizeRoles("superadmin"),
   menuItemController.getAllGlobal
 );
 
@@ -81,6 +86,7 @@ router.patch(
   protect,
   authorizeRoles("admin", "superadmin"),
   // might do checkCategoryAccess
+  checkCategoryAccess,
   menuItemController.enableAllByCategory
 );
 
@@ -90,6 +96,7 @@ router.patch(
   protect,
   authorizeRoles("admin", "superadmin"),
   // might do checkCategoryAccess
+  checkCategoryAccess,
   menuItemController.disableAllByCategory
 );
 
@@ -99,6 +106,7 @@ router.delete(
   protect,
   authorizeRoles("admin", "superadmin"),
   // might do checkCategoryAccess
+  checkCategoryAccess,
   menuItemController.deleteAllByCategory
 );
 
@@ -107,6 +115,7 @@ router.get(
   "/restaurant/:restaurantId",
   protect,
   authorizeRoles("admin", "superadmin"),
+  checkRestaurantAccess,
   menuItemController.getAllByRestaurant
 );
 
@@ -115,6 +124,7 @@ router.delete(
   "/restaurant/:restaurantId",
   protect,
   authorizeRoles("admin", "superadmin"),
+  checkRestaurantAccess,
   menuItemController.deleteAllByRestaurant
 );
 

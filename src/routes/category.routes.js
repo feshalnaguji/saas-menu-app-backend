@@ -5,6 +5,10 @@ const router = express.Router();
 const categoryController = require("../controllers/category.controller");
 const { protect, authorizeRoles } = require("../middlewares/auth");
 const { checkCategoryAccess } = require("../middlewares/checkCategoryAccess");
+const {
+  checkRestaurantAccess,
+} = require("../middlewares/checkRestaurantAccess");
+const { checkServiceAccess } = require("../middlewares/checkServiceAccess");
 
 // CREATE new category
 router.post(
@@ -12,6 +16,7 @@ router.post(
   protect,
   authorizeRoles("admin", "superadmin"),
   // might want a custom middleware that checks the service ID => checkServiceAccess by body.serviceId
+  checkServiceAccess,
   categoryController.create
 );
 
@@ -40,7 +45,7 @@ router.delete(
 router.get(
   "/",
   protect,
-  authorizeRoles("admin", "superadmin"),
+  authorizeRoles("superadmin"),
   categoryController.getAllGlobal
 );
 
@@ -57,6 +62,7 @@ router.patch(
   "/service/:serviceId/enableAll",
   protect,
   authorizeRoles("admin", "superadmin"),
+  checkServiceAccess,
   categoryController.enableAllByService
 );
 
@@ -66,6 +72,7 @@ router.patch(
   protect,
   authorizeRoles("admin", "superadmin"),
   // might do checkServiceAccess or checkRestaurantIdParam
+  checkServiceAccess,
   categoryController.disableAllByService
 );
 
@@ -74,6 +81,7 @@ router.delete(
   "/service/:serviceId",
   protect,
   authorizeRoles("admin", "superadmin"),
+  checkServiceAccess,
   categoryController.deleteAllByService
 );
 
@@ -101,6 +109,7 @@ router.get(
   protect,
   authorizeRoles("admin", "superadmin"),
   // optional: checkRestaurantIdParam or a similar middleware
+  checkRestaurantAccess,
   categoryController.getAllByRestaurant
 );
 
@@ -110,6 +119,7 @@ router.delete(
   protect,
   authorizeRoles("admin", "superadmin"),
   // optional: checkRestaurantIdParam
+  checkRestaurantAccess,
   categoryController.deleteAllByRestaurant
 );
 
