@@ -29,14 +29,31 @@ const ImportLogSchema = new Schema(
       type: [String],
       default: [],
     },
+    // Updated: store real admin name or default
     importedBy: {
       type: String,
       default: "Guest Admin",
+    },
+    // Additional: store role (admin or superadmin)
+    importedByRole: {
+      type: String,
+      default: "admin",
+    },
+    // Additional: track how many menu items were imported
+    itemCount: {
+      type: Number,
+      default: 0,
     },
     importBatchId: {
       type: String,
       default: "",
     },
+    restaurantId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Restaurant",
+      default: null,
+    },
+    ipAddress: { type: String, default: null },
   },
   {
     timestamps: true,

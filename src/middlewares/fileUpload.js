@@ -5,23 +5,9 @@
 // you can expand for images, etc., in future phases.
 
 const multer = require("multer");
-const path = require("path");
 
-// Configure Multer storage
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    // Store uploaded files in a 'uploads' folder
-    // (Make sure to create this folder or handle if it doesn't exist)
-    cb(null, "uploads/");
-  },
-  filename: (req, file, cb) => {
-    // Use original name or create a custom name
-    const ext = path.extname(file.originalname);
-    const baseName = path.basename(file.originalname, ext);
-    const uniqueSuffix = Date.now();
-    cb(null, `${baseName}-${uniqueSuffix}${ext}`);
-  },
-});
+// Configure Multer memory storage
+const storage = multer.memoryStorage();
 
 // Basic file filter for Excel (xlsx or xls)
 function excelFileFilter(req, file, cb) {

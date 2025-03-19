@@ -1,6 +1,7 @@
 // controllers/excel.controller.js
+const ImportLog = require("../models/ImportLog");
+const { v4: uuidv4 } = require("uuid");
 const excelService = require("../services/excel.service");
-const fs = require("fs");
 const xlsx = require("xlsx");
 
 exports.uploadExcel = async (req, res) => {
@@ -10,11 +11,13 @@ exports.uploadExcel = async (req, res) => {
         .status(400)
         .json({ success: false, message: "No file uploaded" });
     }
-    const { path: filePath, originalname } = req.file;
+
+    // 'buffer' now contains the in-memory file contents
+    const { buffer, originalname } = req.file;
     const { restaurantId } = req.body;
 
-    // parse the Excel
-    const workbook = xlsx.readFile(filePath);
+    // parse the Excel from an in-memory buffer
+    const workbook = xlsx.read(buffer, { type: "buffer" });
     const sheet = workbook.Sheets[workbook.SheetNames[0]];
     const rawRows = xlsx.utils.sheet_to_json(sheet);
 
@@ -23,10 +26,9 @@ exports.uploadExcel = async (req, res) => {
 
     // 2) If user is admin, ensure itemCount <= 50
     if (req.user.role === "admin" && itemCount > 50) {
-      fs.unlinkSync(filePath); // remove file
       return res.status(403).json({
         success: false,
-        message: `Cannot import more than 50 items. Please contact superadmin.`,
+        message: "Cannot import more than 50 items. Please contact superadmin.",
       });
     }
 
@@ -61,7 +63,29 @@ exports.uploadExcel = async (req, res) => {
       originalname
     );
 
-    fs.unlinkSync(filePath); // remove file if you want
+    // create an ImportLog doc
+    const importBatchId = importResult.importBatchId || uuidv4();
+
+    const importLogDoc = new ImportLog({
+      fileName: originalname,
+      importedAt: new Date(),
+      rowCount: importResult.rowCount,
+      successCount: importResult.successCount,
+      failCount: importResult.failCount,
+      errorLogs: importResult.errors || [],
+      importBatchId,
+      // store user name & role from req.user
+      importedBy: req.user.name || "Guest Admin",
+      importedByRole: req.user.role || "admin",
+      // store itemCount
+      itemCount,
+      // store restaurantId
+      restaurantId,
+      // optional extra fields
+      ipAddress: req.ip,
+    });
+    await importLogDoc.save();
+
     return res.json({ success: true, data: importResult });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
