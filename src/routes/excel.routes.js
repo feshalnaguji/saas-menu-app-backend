@@ -9,7 +9,7 @@ const {
   checkExcelRestaurantAccess,
 } = require("../middlewares/checkExcelRestaurantAccess");
 
-// POST /api/excel/upload
+// POST /api/excel/upload (full upload)
 router.post(
   "/upload",
   protect,
@@ -17,6 +17,16 @@ router.post(
   upload.single("file"),
   checkExcelRestaurantAccess, // new or re-use checkRestaurantAccess with a tweak
   excelController.uploadExcel
+);
+
+// POST /api/excel/upload-update (Update)
+router.post(
+  "/upload-update",
+  protect,
+  authorizeRoles("admin", "superadmin"),
+  upload.single("file"),
+  checkExcelRestaurantAccess,
+  excelController.uploadExcelUpdate // we'll define this
 );
 
 module.exports = router;

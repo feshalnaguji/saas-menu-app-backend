@@ -91,3 +91,79 @@ exports.uploadExcel = async (req, res) => {
     return res.status(500).json({ success: false, message: err.message });
   }
 };
+
+exports.uploadExcelUpdate = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res
+        .status(400)
+        .json({ success: false, message: "No file uploaded" });
+    }
+    const { buffer, originalname } = req.file;
+    const { restaurantId } = req.body;
+
+    // parse in-memory excel
+    const workbook = xlsx.read(buffer, { type: "buffer" });
+    const sheet = workbook.Sheets[workbook.SheetNames[0]];
+    const rawRows = xlsx.utils.sheet_to_json(sheet);
+
+    // item limit check for admin
+    const itemCount = rawRows.filter((r) => r.type === "item").length;
+    if (req.user.role === "admin" && itemCount > 50) {
+      return res.status(403).json({
+        success: false,
+        message: "Cannot import more than 50 items. Please contact superadmin.",
+      });
+    }
+
+    // map rows
+    const rows = rawRows.map((r) => ({
+      type: r.type,
+      name: r.name,
+      serviceName: r.serviceName,
+      categoryName: r.categoryName,
+      description: r.description || "",
+      price: r.price ?? 0,
+      vegNonVeg: r.vegNonVeg,
+      portionInfo: r.portionInfo,
+      calories: r.calories,
+      protein: r.protein,
+      carbs: r.carbs,
+      fat: r.fat,
+      allergens: r.allergens,
+      ingredients: r.ingredients,
+      imageUrl: r.imageUrl,
+      available: r.available,
+      isSpecial: r.isSpecial,
+    }));
+
+    // call the partial update service
+    const importResult = await excelService.bulkPartialUpdate(
+      { restaurantId, rows },
+      originalname
+    );
+    // importResult => { rowCount, successCount, failCount, errors, importBatchId }
+
+    // create an ImportLog doc (Option B)
+    const importBatchId = importResult.importBatchId || uuidv4();
+    const importLogDoc = new ImportLog({
+      fileName: originalname,
+      importedAt: new Date(),
+      rowCount: importResult.rowCount,
+      successCount: importResult.successCount,
+      failCount: importResult.failCount,
+      errorLogs: importResult.errors || [],
+      importBatchId,
+      importedBy: req.user.name || "Guest Admin",
+      importedByRole: req.user.role || "admin",
+      itemCount,
+      restaurantId,
+      ipAddress: req.ip,
+    });
+    await importLogDoc.save();
+
+    return res.json({ success: true, data: importResult });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+};

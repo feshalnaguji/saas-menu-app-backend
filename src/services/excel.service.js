@@ -145,6 +145,176 @@ async function bulkImport(importData, fileName) {
   };
 }
 
+async function bulkPartialUpdate(importData, fileName) {
+  const { restaurantId, rows } = importData;
+  const importBatchId = uuidv4();
+
+  let rowCount = 0;
+  let successCount = 0;
+  let failCount = 0;
+  const errors = [];
+
+  // We'll do NO disabling. We only update or create.
+  // We'll track each row in a loop
+  try {
+    const serviceMap = {}; // optionally store references in memory if we create them
+    const categoryMap = {};
+
+    for (const row of rows || []) {
+      rowCount++;
+      const { type } = row;
+      try {
+        if (type === "service") {
+          // find or create by (restaurantId, name)
+          let svcDoc = await Service.findOne({
+            restaurantId,
+            name: row.name,
+          });
+          if (svcDoc) {
+            // update fields
+            svcDoc.description = row.description || svcDoc.description;
+            // if you want to update more fields, do so
+            // e.g. svcDoc.isActive = row.isActive !== false;
+            await svcDoc.save();
+          } else {
+            // create new service
+            svcDoc = new Service({
+              restaurantId,
+              name: row.name,
+              description: row.description || "",
+              isActive: row.isActive !== false,
+              importBatch: importBatchId,
+            });
+            await svcDoc.save();
+          }
+          serviceMap[row.name] = svcDoc;
+          successCount++;
+        } else if (type === "category") {
+          // find the parent service by name
+          const svcName = row.serviceName;
+          let parentSvc = serviceMap[svcName];
+
+          if (!parentSvc) {
+            // see if it exists in DB
+            parentSvc = await Service.findOne({ restaurantId, name: svcName });
+            if (!parentSvc) {
+              // create new service if not found
+              parentSvc = new Service({
+                restaurantId,
+                name: svcName,
+                importBatch: importBatchId,
+              });
+              await parentSvc.save();
+            }
+            serviceMap[svcName] = parentSvc;
+          }
+          // find or create category by (serviceId, name)
+          let catDoc = await Category.findOne({
+            serviceId: parentSvc._id,
+            name: row.name,
+          });
+          if (catDoc) {
+            // update fields
+            catDoc.description = row.description || catDoc.description;
+            // catDoc.isActive = row.isActive !== false;
+            await catDoc.save();
+          } else {
+            // create new category
+            catDoc = new Category({
+              serviceId: parentSvc._id,
+              name: row.name,
+              description: row.description || "",
+              isActive: row.isActive !== false,
+              importBatch: importBatchId,
+            });
+            await catDoc.save();
+          }
+          categoryMap[row.name] = catDoc;
+          successCount++;
+        } else if (type === "item") {
+          // find parent category
+          const catName = row.categoryName;
+          let parentCat = categoryMap[catName];
+
+          if (!parentCat) {
+            // see if it exists in DB
+            parentCat = await Category.findOne({ name: catName }).populate(
+              "serviceId"
+            ); // if you want to confirm same restaurant
+            if (!parentCat) {
+              // create new cat if not found
+              parentCat = new Category({
+                name: catName,
+                // we do NOT have serviceId here unless we want to guess
+                importBatch: importBatchId,
+              });
+              await parentCat.save();
+            }
+            categoryMap[catName] = parentCat;
+          }
+
+          // now find the item by (categoryId, name)
+          let itemDoc = await MenuItem.findOne({
+            categoryId: parentCat._id,
+            name: row.name,
+          });
+          if (itemDoc) {
+            // update fields
+            itemDoc.description = row.description || itemDoc.description;
+            itemDoc.price = row.price ?? itemDoc.price;
+            // etc. for all fields
+            await itemDoc.save();
+          } else {
+            // create new item
+            itemDoc = new MenuItem({
+              categoryId: parentCat._id,
+              name: row.name,
+              description: row.description || "",
+              price: row.price ?? 0,
+              vegNonVeg: row.vegNonVeg || "veg",
+              portionInfo: row.portionInfo || "",
+              nutritionalInfo: {
+                calories: row.calories ?? 0,
+                protein: row.protein ?? 0,
+                carbs: row.carbs ?? 0,
+                fat: row.fat ?? 0,
+              },
+              allergens: row.allergens ? row.allergens.split(",") : [],
+              ingredients: row.ingredients ? row.ingredients.split(",") : [],
+              imageUrl: row.imageUrl || "",
+              available: row.available !== false,
+              isSpecial: row.isSpecial === true,
+              importBatch: importBatchId,
+            });
+            await itemDoc.save();
+          }
+          successCount++;
+        } else {
+          failCount++;
+          errors.push(`Unknown row type '${type}'`);
+        }
+      } catch (err) {
+        failCount++;
+        errors.push(`Row error: ${err.message}`);
+      }
+    }
+  } catch (err) {
+    errors.push(`General import error: ${err.message}`);
+  }
+
+  // Return summary, no disabling or removing old docs
+  return {
+    rowCount,
+    successCount,
+    failCount,
+    errors,
+    importBatchId,
+  };
+}
+
 module.exports = {
+  // full upload
   bulkImport,
+  // update
+  bulkPartialUpdate,
 };
