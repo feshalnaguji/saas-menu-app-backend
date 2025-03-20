@@ -1,6 +1,5 @@
 // src/services/excel.service.js
 const { v4: uuidv4 } = require("uuid");
-const ImportLog = require("../models/ImportLog");
 const Service = require("../models/Service");
 const Category = require("../models/Category");
 const MenuItem = require("../models/MenuItem");
@@ -136,18 +135,6 @@ async function bulkImport(importData, fileName) {
   } catch (err) {
     errors.push(`General import error: ${err.message}`);
   }
-
-  // (Optional) Insert an ImportLog doc
-  const importLogDoc = new ImportLog({
-    fileName,
-    importedAt: new Date(),
-    rowCount,
-    successCount,
-    failCount,
-    errors,
-    importBatchId,
-  });
-  await importLogDoc.save();
 
   return {
     rowCount,

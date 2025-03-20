@@ -1,16 +1,36 @@
+// src/middlewares/auth.js
 const jwt = require("jsonwebtoken");
+const User = require("../models/User");
 
-exports.protect = (req, res, next) => {
+exports.protect = async (req, res, next) => {
+  let token;
   const header = req.headers.authorization;
   if (!header || !header.startsWith("Bearer ")) {
     return res.status(401).json({ success: false, message: "Not authorized" });
   }
-  const token = header.split(" ")[1];
+  token = header.split(" ")[1];
+
+  if (!token) {
+    return res
+      .status(401)
+      .json({ success: false, message: "Not authorized, no token" });
+  }
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET || "secretkey");
-    // attach user info to req
-    req.user = { userId: decoded.userId, role: decoded.role };
+
+    // Option B approach: fetch user doc
+    const userDoc = await User.findById(decoded.userId);
+    if (!userDoc) {
+      return res.status(401).json({ success: false, message: "No user found" });
+    }
+
+    // attach to req.user
+    req.user = {
+      userId: userDoc._id.toString(),
+      name: userDoc.name || "", // fill in the doc's name
+      role: userDoc.role, // or decoded.role if you trust the token
+    };
     next();
   } catch (err) {
     return res.status(401).json({ success: false, message: "Token invalid" });
