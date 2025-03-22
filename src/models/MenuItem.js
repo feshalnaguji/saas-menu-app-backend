@@ -63,6 +63,8 @@ const MenuItemSchema = new Schema(
       default: "",
     },
     isActive: { type: Boolean, default: true },
+    importLine: { type: Number, default: null },
+    importType: { type: String, default: "item" },
   },
   {
     timestamps: true,

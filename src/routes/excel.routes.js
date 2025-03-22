@@ -19,14 +19,15 @@ router.post(
   excelController.uploadExcel
 );
 
-// POST /api/excel/upload-update (Update)
+// The new "merge" approach that also disables old docs not in the Excel:
+// POST /api/excel/upload-merge
 router.post(
-  "/upload-update",
+  "/upload-merge",
   protect,
   authorizeRoles("admin", "superadmin"),
   upload.single("file"),
   checkExcelRestaurantAccess,
-  excelController.uploadExcelUpdate // we'll define this
+  excelController.uploadExcelMerge // We'll define a new controller method
 );
 
 module.exports = router;

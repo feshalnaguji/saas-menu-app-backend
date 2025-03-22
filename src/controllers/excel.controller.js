@@ -92,7 +92,7 @@ exports.uploadExcel = async (req, res) => {
   }
 };
 
-exports.uploadExcelUpdate = async (req, res) => {
+exports.uploadExcelMerge = async (req, res) => {
   try {
     if (!req.file) {
       return res
@@ -137,16 +137,17 @@ exports.uploadExcelUpdate = async (req, res) => {
       isSpecial: r.isSpecial,
     }));
 
-    // call the partial update service
-    const importResult = await excelService.bulkPartialUpdate(
+    // call the new "merge" service method
+    const importResult = await excelService.bulkMergeUpdate(
       { restaurantId, rows },
       originalname
     );
-    // importResult => { rowCount, successCount, failCount, errors, importBatchId }
 
-    // create an ImportLog doc (Option B)
+    // importResult => { rowCount, successCount, failCount, errors, importBatchId }
     const importBatchId = importResult.importBatchId || uuidv4();
-    const importLogDoc = new ImportLog({
+
+    // Create a log doc
+    const importLog = new ImportLog({
       fileName: originalname,
       importedAt: new Date(),
       rowCount: importResult.rowCount,
@@ -160,7 +161,7 @@ exports.uploadExcelUpdate = async (req, res) => {
       restaurantId,
       ipAddress: req.ip,
     });
-    await importLogDoc.save();
+    await importLog.save();
 
     return res.json({ success: true, data: importResult });
   } catch (err) {

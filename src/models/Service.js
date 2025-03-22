@@ -27,6 +27,9 @@ const ServiceSchema = new Schema(
       type: String,
       default: "",
     },
+    // new fields:
+    importLine: { type: Number, default: null }, // row index
+    importType: { type: String, default: "service" },
   },
   {
     timestamps: true,
