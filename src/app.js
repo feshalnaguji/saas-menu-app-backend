@@ -47,6 +47,7 @@ app.use("/api/menu-items", menuItemRoutes);
 app.use("/api/excel", excelRoutes);
 app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);
+app.use("/api/audit-logs", require("./routes/auditLog.routes"));
 
 // Error handling middleware (example)
 app.use(errorHandler);

@@ -101,6 +101,8 @@ exports.uploadExcelMerge = async (req, res) => {
     }
     const { buffer, originalname } = req.file;
     const { restaurantId } = req.body;
+    const userId = req.user ? req.user._id : null;
+    const userName = req.user ? req.user.name || req.user.email : "";
 
     // parse in-memory excel
     const workbook = xlsx.read(buffer, { type: "buffer" });
@@ -140,7 +142,9 @@ exports.uploadExcelMerge = async (req, res) => {
     // call the new "merge" service method
     const importResult = await excelService.bulkMergeUpdate(
       { restaurantId, rows },
-      originalname
+      originalname,
+      userId,
+      userName
     );
 
     // importResult => { rowCount, successCount, failCount, errors, importBatchId }

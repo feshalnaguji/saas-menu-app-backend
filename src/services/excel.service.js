@@ -1,19 +1,24 @@
 // src/services/excel.service.js
+
 const { v4: uuidv4 } = require("uuid");
 const Service = require("../models/Service");
 const Category = require("../models/Category");
 const MenuItem = require("../models/MenuItem");
 
+// Our new audit logging helpers
+const {
+  logCreate,
+  logDisable,
+  logUpdate,
+  logRename,
+} = require("../utils/auditLogger");
+
 /**
- * Bulk import that:
- * 1) deletes old services/cats/items for the restaurant,
- * 2) name-based create for services, categories, items
+ * FULL UPLOAD: Deactivates old docs, logs "disable", then creates new docs, logs "create".
  *
- * @param {Object} importData - { restaurantId, rows: [] }
- *    each element in rows has: { type, serviceName, categoryName, name, price, ... }
- * @param {String} fileName - original filename
+ * userId, userName come from the controller so we can record who changed it.
  */
-async function bulkImport(importData, fileName) {
+async function bulkImport(importData, fileName, userId, userName) {
   const { restaurantId, rows } = importData;
   const importBatchId = uuidv4();
 
@@ -23,67 +28,118 @@ async function bulkImport(importData, fileName) {
   const errors = [];
 
   try {
-    // STEP A) Find old services for this restaurant
-    const oldServices = await Service.find({ restaurantId }).select("_id");
-    const oldServiceIds = oldServices.map((doc) => doc._id);
+    // 1) Find old docs
+    const oldServices = await Service.find({ restaurantId });
+    const oldServiceIds = oldServices.map((svc) => svc._id);
 
-    // STEP B) Find categories that belong to these service IDs
     const oldCategories = await Category.find({
       serviceId: { $in: oldServiceIds },
-    }).select("_id");
-    const oldCategoryIds = oldCategories.map((doc) => doc._id);
+    });
+    const oldCategoryIds = oldCategories.map((cat) => cat._id);
 
-    // deactivate them
-    await Service.updateMany(
-      { _id: { $in: oldServiceIds } },
-      { $set: { isActive: false } }
-    );
-    await Category.updateMany(
-      { _id: { $in: oldCategoryIds } },
-      { $set: { isActive: false } }
-    );
-    await MenuItem.updateMany(
-      { categoryId: { $in: oldCategoryIds } },
-      { $set: { isActive: false } }
-    );
+    const oldItems = await MenuItem.find({
+      categoryId: { $in: oldCategoryIds },
+    });
 
-    // Now you can re-create new ones from Excel
-    const serviceMap = {};
-    const categoryMap = {};
+    // 2) disable them with logs
+    for (const svc of oldServices) {
+      if (svc.isActive) {
+        svc.isActive = false;
+        await svc.save();
+        await logDisable(
+          "service",
+          svc._id,
+          svc.name,
+          restaurantId,
+          userId,
+          userName,
+          importBatchId
+        );
+      }
+    }
+    for (const cat of oldCategories) {
+      if (cat.isActive) {
+        cat.isActive = false;
+        await cat.save();
+        await logDisable(
+          "category",
+          cat._id,
+          cat.name,
+          restaurantId,
+          userId,
+          userName,
+          importBatchId
+        );
+      }
+    }
+    for (const it of oldItems) {
+      if (it.isActive) {
+        it.isActive = false;
+        await it.save();
+        await logDisable(
+          "item",
+          it._id,
+          it.name,
+          restaurantId,
+          userId,
+          userName,
+          importBatchId
+        );
+      }
+    }
 
+    // 3) re-create new docs
     for (let i = 0; i < rows.length; i++) {
       rowCount++;
       const row = rows[i];
-      const { type } = row;
-      const lineIndex = i + 1; // 1-based or 0-based, your choice
+      const lineIndex = i + 1;
+
       try {
-        if (type === "service") {
+        if (row.type === "service") {
           const svcDoc = new Service({
             restaurantId,
             name: row.name,
             description: row.description || "",
             isActive: row.isActive !== false,
             importBatch: importBatchId,
-            importLine: lineIndex, // store the position
             importType: "service",
+            importLine: lineIndex,
           });
           await svcDoc.save();
-          serviceMap[row.name] = svcDoc;
+          await logCreate(
+            "service",
+            svcDoc._id,
+            svcDoc.name,
+            restaurantId,
+            userId,
+            userName,
+            importBatchId
+          );
           successCount++;
-        } else if (type === "category") {
-          const svcName = row.serviceName;
-          let parentSvc = serviceMap[svcName];
+        } else if (row.type === "category") {
+          // find or create parent service if needed
+          let parentSvc = await Service.findOne({
+            restaurantId,
+            name: row.serviceName,
+          });
           if (!parentSvc) {
-            // Create service on the fly if missing or fail
             parentSvc = new Service({
               restaurantId,
-              name: svcName,
+              name: row.serviceName,
               importBatch: importBatchId,
-              importLine: lineIndex, // store the position
               importType: "service",
+              importLine: null,
             });
             await parentSvc.save();
-            serviceMap[svcName] = parentSvc;
+            await logCreate(
+              "service",
+              parentSvc._id,
+              parentSvc.name,
+              restaurantId,
+              userId,
+              userName,
+              importBatchId
+            );
           }
           const catDoc = new Category({
             serviceId: parentSvc._id,
@@ -91,31 +147,53 @@ async function bulkImport(importData, fileName) {
             description: row.description || "",
             isActive: row.isActive !== false,
             importBatch: importBatchId,
-            importLine: lineIndex,
             importType: "category",
+            importLine: lineIndex,
           });
           await catDoc.save();
-          categoryMap[row.name] = catDoc;
+          await logCreate(
+            "category",
+            catDoc._id,
+            catDoc.name,
+            restaurantId,
+            userId,
+            userName,
+            importBatchId
+          );
           successCount++;
-        } else if (type === "item") {
-          const catName = row.categoryName;
-          let parentCat = categoryMap[catName];
-          if (!parentCat) {
-            // create cat on the fly or fail
-            parentCat = new Category({
-              serviceId: null, // no reference => might want to fail instead
-              name: catName,
-              importLine: lineIndex,
+        } else if (row.type === "item") {
+          // find or create parent category if needed
+          let catDoc = await Category.findOne({
+            name: row.categoryName,
+          }).populate("serviceId");
+          if (!catDoc) {
+            catDoc = new Category({
+              name: row.categoryName,
+              importBatch: importBatchId,
               importType: "category",
+              importLine: null,
             });
-            await parentCat.save();
-            categoryMap[catName] = parentCat;
+            await catDoc.save();
+            await logCreate(
+              "category",
+              catDoc._id,
+              catDoc.name,
+              restaurantId,
+              userId,
+              userName,
+              importBatchId
+            );
           }
+
           const itemDoc = new MenuItem({
-            categoryId: parentCat._id,
+            categoryId: catDoc._id,
             name: row.name,
-            description: row.description || "",
+            isActive: row.isActive !== false,
+            importBatch: importBatchId,
+            importType: "item",
+            importLine: lineIndex,
             price: row.price ?? 0,
+            description: row.description || "",
             vegNonVeg: row.vegNonVeg || "veg",
             portionInfo: row.portionInfo || "",
             nutritionalInfo: {
@@ -129,19 +207,25 @@ async function bulkImport(importData, fileName) {
             imageUrl: row.imageUrl || "",
             available: row.available !== false,
             isSpecial: row.isSpecial === true,
-            importBatch: importBatchId,
-            importLine: lineIndex,
-            importType: "item",
           });
           await itemDoc.save();
+          await logCreate(
+            "item",
+            itemDoc._id,
+            itemDoc.name,
+            restaurantId,
+            userId,
+            userName,
+            importBatchId
+          );
           successCount++;
         } else {
           failCount++;
-          errors.push(`Unknown row type '${type}'`);
+          errors.push(`Unknown row type '${row.type}'`);
         }
       } catch (err) {
         failCount++;
-        errors.push(`Row error: ${err.message}`);
+        errors.push(`Row error (line ${lineIndex}): ${err.message}`);
       }
     }
   } catch (err) {
@@ -157,7 +241,11 @@ async function bulkImport(importData, fileName) {
   };
 }
 
-async function bulkMergeUpdate(importData, fileName) {
+/**
+ * MERGE UPLOAD: row-position approach. We store "create", "disable", "rename", "update"
+ * in the audit logs with docName, plus user info & importBatchId.
+ */
+async function bulkMergeUpdate(importData, fileName, userId, userName) {
   const { restaurantId, rows } = importData;
   const importBatchId = uuidv4();
 
@@ -167,7 +255,7 @@ async function bulkMergeUpdate(importData, fileName) {
   const errors = [];
 
   try {
-    // 1) Load all existing docs for this restaurant
+    // 1) load existing docs
     const existingServices = await Service.find({ restaurantId });
     const existingCats = await Category.find({
       serviceId: { $in: existingServices.map((s) => s._id) },
@@ -176,77 +264,129 @@ async function bulkMergeUpdate(importData, fileName) {
       categoryId: { $in: existingCats.map((c) => c._id) },
     });
 
-    // Build a docMap => key = `${importType}-${importLine}`
-    // Then we keep an unusedDocs set of doc IDs for disabling if not used
+    // build docMap => key= type-lineIndex
     const docMap = new Map();
     const unusedDocs = new Set();
 
-    // put all services in docMap
+    // put them in docMap
     for (const svc of existingServices) {
-      if (svc.importType && svc.importLine != null) {
-        const key = `${svc.importType}-${svc.importLine}`;
-        docMap.set(key, { doc: svc, docType: "service" });
-      }
+      const key =
+        svc.importType && svc.importLine != null
+          ? `${svc.importType}-${svc.importLine}`
+          : null;
+      if (key) docMap.set(key, svc);
       unusedDocs.add(svc._id.toString());
     }
-    // categories
     for (const cat of existingCats) {
-      if (cat.importType && cat.importLine != null) {
-        const key = `${cat.importType}-${cat.importLine}`;
-        docMap.set(key, { doc: cat, docType: "category" });
-      }
+      const key =
+        cat.importType && cat.importLine != null
+          ? `${cat.importType}-${cat.importLine}`
+          : null;
+      if (key) docMap.set(key, cat);
       unusedDocs.add(cat._id.toString());
     }
-    // items
     for (const it of existingItems) {
-      if (it.importType && it.importLine != null) {
-        const key = `${it.importType}-${it.importLine}`;
-        docMap.set(key, { doc: it, docType: "item" });
-      }
+      const key =
+        it.importType && it.importLine != null
+          ? `${it.importType}-${it.importLine}`
+          : null;
+      if (key) docMap.set(key, it);
       unusedDocs.add(it._id.toString());
     }
 
-    // 2) For each new row
+    // 2) parse each row => either rename, update, or create new
     for (let i = 0; i < rows.length; i++) {
-      const row = rows[i];
       rowCount++;
-      const lineIndex = i + 1; // 1-based
+      const row = rows[i];
+      const lineIndex = i + 1;
       const key = `${row.type}-${lineIndex}`;
 
       try {
-        // check if we have an existing doc for that type+line
-        const foundEntry = docMap.get(key);
-        if (foundEntry) {
-          // the doc was previously created on this row
-          const oldDoc = foundEntry.doc;
-          // if name changed => disable old doc + create new doc
+        const oldDoc = docMap.get(key);
+        if (oldDoc) {
+          // check name
           if (row.name !== oldDoc.name) {
+            // rename => disable old doc + logDisable, create new doc + logCreate, logRename
             oldDoc.isActive = false;
             await oldDoc.save();
-            // create brand-new doc with new name
-            await createNewDoc(
+            await logDisable(
+              row.type,
+              oldDoc._id,
+              oldDoc.name,
+              restaurantId,
+              userId,
+              userName,
+              importBatchId
+            );
+
+            const newDoc = await createNewDoc(
               row,
               lineIndex,
               importBatchId,
               restaurantId,
               errors
             );
+            if (newDoc) {
+              await logRename(
+                row.type,
+                oldDoc._id,
+                oldDoc.name,
+                row.name,
+                restaurantId,
+                userId,
+                userName,
+                importBatchId
+              );
+              await logCreate(
+                row.type,
+                newDoc._id,
+                newDoc.name,
+                restaurantId,
+                userId,
+                userName,
+                importBatchId
+              );
+            }
           } else {
-            // same name => just update subfields
-            await updateDocFields(oldDoc, row, errors);
-            // doc is used => remove from unused
+            // same name => partial update
+            const changesArr = await updateDocFields(oldDoc, row);
+            // remove from unused
             unusedDocs.delete(oldDoc._id.toString());
+            if (changesArr && changesArr.length > 0) {
+              // pass docName= oldDoc.name
+              await logUpdate(
+                row.type,
+                oldDoc._id,
+                oldDoc.name,
+                restaurantId,
+                userId,
+                userName,
+                changesArr,
+                importBatchId
+              );
+            }
           }
           successCount++;
         } else {
-          // brand-new row => create new doc with parentName-based approach
-          await createNewDoc(
+          // brand new doc in that row
+          const newDoc = await createNewDoc(
             row,
             lineIndex,
             importBatchId,
             restaurantId,
             errors
           );
+          if (newDoc) {
+            await logCreate(
+              row.type,
+              newDoc._id,
+              newDoc.name,
+              restaurantId,
+              userId,
+              userName,
+              importBatchId
+            );
+          }
           successCount++;
         }
       } catch (err) {
@@ -255,14 +395,52 @@ async function bulkMergeUpdate(importData, fileName) {
       }
     }
 
-    // 3) disable any docs leftover in unusedDocs
+    // 3) disable leftover docs
     for (const docId of unusedDocs) {
-      let updated = await Service.findByIdAndUpdate(docId, { isActive: false });
-      if (!updated) {
-        updated = await Category.findByIdAndUpdate(docId, { isActive: false });
+      let doc = await Service.findById(docId);
+      if (doc && doc.isActive) {
+        doc.isActive = false;
+        await doc.save();
+        await logDisable(
+          "service",
+          doc._id,
+          doc.name,
+          restaurantId,
+          userId,
+          userName,
+          importBatchId
+        );
+        continue;
       }
-      if (!updated) {
-        updated = await MenuItem.findByIdAndUpdate(docId, { isActive: false });
+      doc = await Category.findById(docId);
+      if (doc && doc.isActive) {
+        doc.isActive = false;
+        await doc.save();
+        await logDisable(
+          "category",
+          doc._id,
+          doc.name,
+          restaurantId,
+          userId,
+          userName,
+          importBatchId
+        );
+        continue;
+      }
+      doc = await MenuItem.findById(docId);
+      if (doc && doc.isActive) {
+        doc.isActive = false;
+        await doc.save();
+        await logDisable(
+          "item",
+          doc._id,
+          doc.name,
+          restaurantId,
+          userId,
+          userName,
+          importBatchId
+        );
+        continue;
       }
     }
   } catch (err) {
@@ -278,7 +456,7 @@ async function bulkMergeUpdate(importData, fileName) {
   };
 }
 
-// Helper: create doc for a brand-new row
+// create doc for a brand-new row => if category => find parent service by name, etc.
 async function createNewDoc(
   row,
   lineIndex,
@@ -297,8 +475,8 @@ async function createNewDoc(
       importLine: lineIndex,
     });
     await svc.save();
+    return svc;
   } else if (row.type === "category") {
-    // we must find or create parent service by name => row.serviceName
     if (!row.serviceName) {
       throw new Error(`Category row missing serviceName => ${row.name}`);
     }
@@ -307,15 +485,15 @@ async function createNewDoc(
       name: row.serviceName,
     });
     if (!parentSvc) {
-      // create parent service
       parentSvc = new Service({
         restaurantId,
         name: row.serviceName,
         importBatch: importBatchId,
         importType: "service",
-        importLine: null, // we can't position-based a new parent if the user didn't specify
+        importLine: null,
       });
       await parentSvc.save();
+      // We can logCreate here if you want, but better do it from bulkImport.
     }
     const cat = new Category({
       serviceId: parentSvc._id,
@@ -327,8 +505,8 @@ async function createNewDoc(
       importLine: lineIndex,
     });
     await cat.save();
+    return cat;
   } else if (row.type === "item") {
-    // find or create parent category by name => row.categoryName
     if (!row.categoryName) {
       throw new Error(`Item row missing categoryName => ${row.name}`);
     }
@@ -336,16 +514,14 @@ async function createNewDoc(
       "serviceId"
     );
     if (!catDoc) {
-      // create new cat
       catDoc = new Category({
         name: row.categoryName,
         importBatch: importBatchId,
         importType: "category",
-        importLine: null, // new category row
+        importLine: null,
       });
       await catDoc.save();
     }
-
     const itemDoc = new MenuItem({
       categoryId: catDoc._id,
       name: row.name,
@@ -370,50 +546,163 @@ async function createNewDoc(
       isSpecial: row.isSpecial === true,
     });
     await itemDoc.save();
+    return itemDoc;
   } else {
     throw new Error(`Unknown row type '${row.type}'`);
   }
 }
 
-// Helper: update subfields for an existing doc
-async function updateDocFields(doc, row, errors) {
-  // if it's a service doc
+// update subfields => return array of {field, oldValue, newValue}
+async function updateDocFields(doc, row) {
+  const changes = [];
   if (doc.importType === "service") {
-    doc.description = row.description || doc.description;
-    // doc.isActive = row.isActive !== false; // if you want
+    if (row.description && row.description !== doc.description) {
+      changes.push({
+        field: "description",
+        oldValue: doc.description,
+        newValue: row.description,
+      });
+      doc.description = row.description;
+    }
     await doc.save();
   } else if (doc.importType === "category") {
-    doc.description = row.description || doc.description;
-    // doc.isActive = row.isActive !== false;
+    if (row.description && row.description !== doc.description) {
+      changes.push({
+        field: "description",
+        oldValue: doc.description,
+        newValue: row.description,
+      });
+      doc.description = row.description;
+    }
     await doc.save();
   } else if (doc.importType === "item") {
-    // item => update everything
-    doc.description = row.description || doc.description;
-    if (row.price != null) doc.price = row.price;
-    if (row.vegNonVeg) doc.vegNonVeg = row.vegNonVeg;
-    if (row.portionInfo) doc.portionInfo = row.portionInfo;
-
-    doc.nutritionalInfo.calories = row.calories ?? doc.nutritionalInfo.calories;
-    doc.nutritionalInfo.protein = row.protein ?? doc.nutritionalInfo.protein;
-    doc.nutritionalInfo.carbs = row.carbs ?? doc.nutritionalInfo.carbs;
-    doc.nutritionalInfo.fat = row.fat ?? doc.nutritionalInfo.fat;
-
+    // see previous approach for item fields
+    const oldPrice = doc.price;
+    if (row.price != null && row.price !== doc.price) {
+      changes.push({
+        field: "price",
+        oldValue: doc.price,
+        newValue: row.price,
+      });
+      doc.price = row.price;
+    }
+    if (row.description && row.description !== doc.description) {
+      changes.push({
+        field: "description",
+        oldValue: doc.description,
+        newValue: row.description,
+      });
+      doc.description = row.description;
+    }
+    if (row.vegNonVeg && row.vegNonVeg !== doc.vegNonVeg) {
+      changes.push({
+        field: "vegNonVeg",
+        oldValue: doc.vegNonVeg,
+        newValue: row.vegNonVeg,
+      });
+      doc.vegNonVeg = row.vegNonVeg;
+    }
+    if (row.portionInfo && row.portionInfo !== doc.portionInfo) {
+      changes.push({
+        field: "portionInfo",
+        oldValue: doc.portionInfo,
+        newValue: row.portionInfo,
+      });
+      doc.portionInfo = row.portionInfo;
+    }
+    // nutritional
+    if (row.calories != null && row.calories !== doc.nutritionalInfo.calories) {
+      changes.push({
+        field: "calories",
+        oldValue: doc.nutritionalInfo.calories,
+        newValue: row.calories,
+      });
+      doc.nutritionalInfo.calories = row.calories;
+    }
+    if (row.protein != null && row.protein !== doc.nutritionalInfo.protein) {
+      changes.push({
+        field: "protein",
+        oldValue: doc.nutritionalInfo.protein,
+        newValue: row.protein,
+      });
+      doc.nutritionalInfo.protein = row.protein;
+    }
+    if (row.carbs != null && row.carbs !== doc.nutritionalInfo.carbs) {
+      changes.push({
+        field: "carbs",
+        oldValue: doc.nutritionalInfo.carbs,
+        newValue: row.carbs,
+      });
+      doc.nutritionalInfo.carbs = row.carbs;
+    }
+    if (row.fat != null && row.fat !== doc.nutritionalInfo.fat) {
+      changes.push({
+        field: "fat",
+        oldValue: doc.nutritionalInfo.fat,
+        newValue: row.fat,
+      });
+      doc.nutritionalInfo.fat = row.fat;
+    }
+    // allergens
     if (row.allergens) {
-      doc.allergens = row.allergens.split(",");
+      const newAllergens = row.allergens.split(",");
+      if (JSON.stringify(newAllergens) !== JSON.stringify(doc.allergens)) {
+        changes.push({
+          field: "allergens",
+          oldValue: doc.allergens,
+          newValue: newAllergens,
+        });
+        doc.allergens = newAllergens;
+      }
     }
+    // ingredients
     if (row.ingredients) {
-      doc.ingredients = row.ingredients.split(",");
+      const newIngr = row.ingredients.split(",");
+      if (JSON.stringify(newIngr) !== JSON.stringify(doc.ingredients)) {
+        changes.push({
+          field: "ingredients",
+          oldValue: doc.ingredients,
+          newValue: newIngr,
+        });
+        doc.ingredients = newIngr;
+      }
     }
-    doc.imageUrl = row.imageUrl || doc.imageUrl;
-    if (row.available != null) doc.available = row.available !== false;
-    if (row.isSpecial != null) doc.isSpecial = row.isSpecial === true;
+    if (row.imageUrl && row.imageUrl !== doc.imageUrl) {
+      changes.push({
+        field: "imageUrl",
+        oldValue: doc.imageUrl,
+        newValue: row.imageUrl,
+      });
+      doc.imageUrl = row.imageUrl;
+    }
+    if (row.available != null) {
+      const newAvail = row.available !== false;
+      if (newAvail !== doc.available) {
+        changes.push({
+          field: "available",
+          oldValue: doc.available,
+          newValue: newAvail,
+        });
+        doc.available = newAvail;
+      }
+    }
+    if (row.isSpecial != null) {
+      const newSpec = row.isSpecial === true;
+      if (newSpec !== doc.isSpecial) {
+        changes.push({
+          field: "isSpecial",
+          oldValue: doc.isSpecial,
+          newValue: newSpec,
+        });
+        doc.isSpecial = newSpec;
+      }
+    }
     await doc.save();
   }
+  return changes;
 }
 
 module.exports = {
-  // full upload
   bulkImport,
-  // merge-update
   bulkMergeUpdate,
 };
