@@ -41,6 +41,19 @@ const AuditLogSchema = new Schema(
       type: String,
       default: "",
     },
+    changedByRole: {
+      type: String,
+      default: "",
+    },
+    // For first import, if you want to store who originally imported
+    firstImportedByName: {
+      type: String,
+      default: "",
+    },
+    firstImportedByRole: {
+      type: String,
+      default: "",
+    },
     changes: {
       type: [ChangeSchema],
       default: [],

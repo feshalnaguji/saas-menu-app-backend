@@ -21,7 +21,13 @@ router.post(
 );
 
 // GET categories by service
-router.get("/service/:serviceId", protect, categoryController.getByService);
+router.get(
+  "/service/:serviceId",
+  protect,
+  authorizeRoles("admin", "superadmin"),
+  checkServiceAccess,
+  categoryController.getByService
+);
 
 // UPDATE single category
 router.put(

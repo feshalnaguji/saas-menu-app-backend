@@ -18,7 +18,7 @@ const {
  *
  * userId, userName come from the controller so we can record who changed it.
  */
-async function bulkImport(importData, fileName, userId, userName) {
+async function bulkImport(importData, fileName, userId, userName, userRole) {
   const { restaurantId, rows } = importData;
   const importBatchId = uuidv4();
 
@@ -53,6 +53,7 @@ async function bulkImport(importData, fileName, userId, userName) {
           restaurantId,
           userId,
           userName,
+          userRole,
           importBatchId
         );
       }
@@ -68,6 +69,7 @@ async function bulkImport(importData, fileName, userId, userName) {
           restaurantId,
           userId,
           userName,
+          userRole,
           importBatchId
         );
       }
@@ -83,6 +85,7 @@ async function bulkImport(importData, fileName, userId, userName) {
           restaurantId,
           userId,
           userName,
+          userRole,
           importBatchId
         );
       }
@@ -106,6 +109,7 @@ async function bulkImport(importData, fileName, userId, userName) {
             importLine: lineIndex,
           });
           await svcDoc.save();
+          // log create => pass isFirstImport=true
           await logCreate(
             "service",
             svcDoc._id,
@@ -113,7 +117,9 @@ async function bulkImport(importData, fileName, userId, userName) {
             restaurantId,
             userId,
             userName,
-            importBatchId
+            userRole,
+            importBatchId,
+            true
           );
           successCount++;
         } else if (row.type === "category") {
@@ -138,7 +144,9 @@ async function bulkImport(importData, fileName, userId, userName) {
               restaurantId,
               userId,
               userName,
-              importBatchId
+              userRole,
+              importBatchId,
+              true
             );
           }
           const catDoc = new Category({
@@ -158,7 +166,9 @@ async function bulkImport(importData, fileName, userId, userName) {
             restaurantId,
             userId,
             userName,
-            importBatchId
+            userRole,
+            importBatchId,
+            true
           );
           successCount++;
         } else if (row.type === "item") {
@@ -181,7 +191,9 @@ async function bulkImport(importData, fileName, userId, userName) {
               restaurantId,
               userId,
               userName,
-              importBatchId
+              userRole,
+              importBatchId,
+              true
             );
           }
 
@@ -216,7 +228,9 @@ async function bulkImport(importData, fileName, userId, userName) {
             restaurantId,
             userId,
             userName,
-            importBatchId
+            userRole,
+            importBatchId,
+            true
           );
           successCount++;
         } else {
@@ -245,7 +259,13 @@ async function bulkImport(importData, fileName, userId, userName) {
  * MERGE UPLOAD: row-position approach. We store "create", "disable", "rename", "update"
  * in the audit logs with docName, plus user info & importBatchId.
  */
-async function bulkMergeUpdate(importData, fileName, userId, userName) {
+async function bulkMergeUpdate(
+  importData,
+  fileName,
+  userId,
+  userName,
+  userRole
+) {
   const { restaurantId, rows } = importData;
   const importBatchId = uuidv4();
 
@@ -316,6 +336,7 @@ async function bulkMergeUpdate(importData, fileName, userId, userName) {
               restaurantId,
               userId,
               userName,
+              userRole,
               importBatchId
             );
 
@@ -335,6 +356,7 @@ async function bulkMergeUpdate(importData, fileName, userId, userName) {
                 restaurantId,
                 userId,
                 userName,
+                userRole,
                 importBatchId
               );
               await logCreate(
@@ -344,6 +366,7 @@ async function bulkMergeUpdate(importData, fileName, userId, userName) {
                 restaurantId,
                 userId,
                 userName,
+                userRole,
                 importBatchId
               );
             }
@@ -361,6 +384,7 @@ async function bulkMergeUpdate(importData, fileName, userId, userName) {
                 restaurantId,
                 userId,
                 userName,
+                userRole,
                 changesArr,
                 importBatchId
               );
@@ -384,7 +408,9 @@ async function bulkMergeUpdate(importData, fileName, userId, userName) {
               restaurantId,
               userId,
               userName,
-              importBatchId
+              userRole,
+              importBatchId,
+              false // not first import
             );
           }
           successCount++;
@@ -408,6 +434,7 @@ async function bulkMergeUpdate(importData, fileName, userId, userName) {
           restaurantId,
           userId,
           userName,
+          userRole,
           importBatchId
         );
         continue;
@@ -423,6 +450,7 @@ async function bulkMergeUpdate(importData, fileName, userId, userName) {
           restaurantId,
           userId,
           userName,
+          userRole,
           importBatchId
         );
         continue;
@@ -438,6 +466,7 @@ async function bulkMergeUpdate(importData, fileName, userId, userName) {
           restaurantId,
           userId,
           userName,
+          userRole,
           importBatchId
         );
         continue;

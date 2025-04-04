@@ -1,6 +1,10 @@
 // src/utils/auditLogger.js
 const AuditLog = require("../models/AuditLog");
 
+/**
+ * For a new doc.
+ * If isFirstImport===true, we store firstImportedByName/Role for clarity.
+ */
 async function logCreate(
   docType,
   docId,
@@ -8,18 +12,33 @@ async function logCreate(
   restaurantId,
   userId,
   userName,
-  importBatchId
+  userRole,
+  importBatchId,
+  isFirstImport = false
 ) {
-  await AuditLog.create({
+  const logData = {
     docType,
     docId,
     docName,
     restaurantId,
     operation: "create",
-    changedBy: userId,
-    changedByName: userName,
     importBatchId,
-  });
+    changes: [],
+  };
+  if (isFirstImport) {
+    // store who originally imported
+    logData.firstImportedByName = userName || "";
+    logData.firstImportedByRole = userRole || "";
+    logData.changedBy = null;
+    logData.changedByName = "";
+    logData.changedByRole = "";
+  } else {
+    // normal create in merges
+    logData.changedBy = userId;
+    logData.changedByName = userName || "";
+    logData.changedByRole = userRole || "";
+  }
+  await AuditLog.create(logData);
 }
 
 async function logDisable(
@@ -29,6 +48,7 @@ async function logDisable(
   restaurantId,
   userId,
   userName,
+  userRole,
   importBatchId
 ) {
   await AuditLog.create({
@@ -38,7 +58,8 @@ async function logDisable(
     restaurantId,
     operation: "disable",
     changedBy: userId,
-    changedByName: userName,
+    changedByName: userName || "",
+    changedByRole: userRole || "",
     importBatchId,
   });
 }
@@ -50,6 +71,7 @@ async function logUpdate(
   restaurantId,
   userId,
   userName,
+  userRole,
   changesArr,
   importBatchId
 ) {
@@ -61,7 +83,8 @@ async function logUpdate(
     restaurantId,
     operation: "update",
     changedBy: userId,
-    changedByName: userName,
+    changedByName: userName || "",
+    changedByRole: userRole || "",
     changes: changesArr,
     importBatchId,
   });
@@ -75,6 +98,7 @@ async function logRename(
   restaurantId,
   userId,
   userName,
+  userRole,
   importBatchId
 ) {
   await AuditLog.create({
@@ -84,7 +108,8 @@ async function logRename(
     restaurantId,
     operation: "rename",
     changedBy: userId,
-    changedByName: userName,
+    changedByName: userName || "",
+    changedByRole: userRole || "",
     changes: [
       {
         field: "name",

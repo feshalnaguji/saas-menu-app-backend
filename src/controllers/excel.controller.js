@@ -54,13 +54,25 @@ exports.uploadExcel = async (req, res) => {
       isSpecial: r.isSpecial,
     }));
 
+    // parse the file, etc.
+    const userId = req.user._id;
+    const userName = req.user.name || "";
+    const userRole = req.user.role || "";
+
+    // If you decide "first import" is always true for /upload:
+    const isFirstImport = true;
+
     // call the service
     const importResult = await excelService.bulkImport(
       {
         restaurantId,
         rows,
       },
-      originalname
+      originalname,
+      userId,
+      userName,
+      userRole,
+      isFirstImport
     );
 
     // create an ImportLog doc
@@ -103,6 +115,7 @@ exports.uploadExcelMerge = async (req, res) => {
     const { restaurantId } = req.body;
     const userId = req.user ? req.user._id : null;
     const userName = req.user ? req.user.name || req.user.email : "";
+    const userRole = req.user ? req.user.role : "";
 
     // parse in-memory excel
     const workbook = xlsx.read(buffer, { type: "buffer" });
@@ -144,7 +157,8 @@ exports.uploadExcelMerge = async (req, res) => {
       { restaurantId, rows },
       originalname,
       userId,
-      userName
+      userName,
+      userRole
     );
 
     // importResult => { rowCount, successCount, failCount, errors, importBatchId }
